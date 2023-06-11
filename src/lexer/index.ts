@@ -3,6 +3,7 @@ export const TOKEN_KIND = {
     Eof: 'EOF',
 
     Int: 'INT',
+    String: 'STRING',
     Ident: 'IDENT',
 
     // Delimiters

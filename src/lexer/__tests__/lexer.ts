@@ -128,5 +128,3 @@ test('test add function', () => {
         expect(next.kind).toBe(token.kind)
     }
 })
-TOKEN_KIND
-TOKEN_KIND
