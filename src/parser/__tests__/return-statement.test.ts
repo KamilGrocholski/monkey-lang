@@ -15,7 +15,6 @@ return 10;
     const expected = ['return 2;', 'return 3;', 'return 10;']
 
     expect(program.statements.length).toBe(3)
-    console.log(program.statements)
 
     program.statements.forEach((s, i) => {
         expect(s.toString()).toBe(expected[i])

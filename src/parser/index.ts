@@ -49,6 +49,15 @@ export default class Parser {
         this.registerPrefix(TOKEN_KIND.Minus, this.parsePrefixExpression)
 
         this.registerInfix(TOKEN_KIND.Plus, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.Minus, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.Slash, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.Asterisk, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.Equal, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.NotEqual, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.LessThan, this.parseInfixExpression)
+        this.registerInfix(TOKEN_KIND.GreaterThan, this.parseInfixExpression)
+        // this.registerInfix(TOKEN_KIND.LParen, this.parseCallExpression)
+        // this.registerInfix(TOKEN_KIND.RParen, this.parseIndexExpression)
 
         this.currentToken = this.lexer.getNextToken()
         this.peekToken = this.lexer.getNextToken()
@@ -144,9 +153,9 @@ export default class Parser {
             !this.peekTokenIs(TOKEN_KIND.Semicolon) &&
             precedence < this.peekPrecedence()
         ) {
-            const infixFn = this.infixParseFns[this.currentToken.kind]
+            const infixFn = this.infixParseFns[this.peekToken.kind]
             if (!infixFn) {
-                return null
+                return leftExp
             }
 
             this.nextToken()
@@ -183,7 +192,7 @@ export default class Parser {
         return exp
     }
 
-    private parseInfixExpression(leftExp: Expression | null): InfixExpression {
+    private parseInfixExpression(leftExp: Expression): InfixExpression {
         const exp = new InfixExpression(
             this.currentToken,
             this.currentToken.literal,

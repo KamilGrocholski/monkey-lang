@@ -1,29 +1,28 @@
-import Parser from '..'
-import { ExpressionStatement } from '../../ast/nodes/expression-statement'
-import { IntegerLiteral } from '../../ast/nodes/integer-literal'
-import { PrefixExpression } from '../../ast/nodes/prefix-expression'
-import { Lexer } from '../../lexer'
+import { TOKEN_KIND } from '../../lexer'
+import { parseTester } from './infix-expression.test'
 
-test('prefix expression', () => {
-    const data = [
-        { input: '!5;', operator: '!', int: 5 },
-        { input: '-15;', operator: '-', int: 15 },
-    ]
-
-    data.forEach((d) => {
-        const l = new Lexer(d.input)
-        const p = new Parser(l)
-        const program = p.parseProgram()
-
-        console.log(program.statements)
-        expect(program.statements.length).toBe(1)
-        expect(program.statements[0] instanceof ExpressionStatement).toBe(true)
-        const s = program.statements[0] as unknown as ExpressionStatement
-        expect(s.exp instanceof PrefixExpression).toBe(true)
-        const prefixExp = s.exp as unknown as PrefixExpression
-        expect(prefixExp.operator).toBe(d.operator)
-        expect(prefixExp.right instanceof IntegerLiteral).toBe(true)
-        const right = prefixExp.right as unknown as IntegerLiteral
-        expect(right.value).toBe(d.int)
+describe('prefix expression', () => {
+    test.each([
+        [
+            '!5;',
+            '(!5)',
+            {
+                operator: '!',
+                right: {
+                    token: {
+                        literal: '5',
+                        type: TOKEN_KIND.Int,
+                    },
+                    value: 5,
+                },
+                token: {
+                    literal: '!',
+                    type: TOKEN_KIND.Bang,
+                },
+            },
+        ],
+    ])('ahga', (input, string, token) => {
+        const { parser, program } = parseTester(input)
+        expect(program.toString()).toBe(string)
     })
 })
