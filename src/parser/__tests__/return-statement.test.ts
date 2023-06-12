@@ -1,18 +1,18 @@
 import Parser from '..'
 import { Lexer } from '../../lexer'
 
-test('let-statement', () => {
+test('return', () => {
     const input = `
-let x = 5;
-let y = 10;
-let foobar = 838383;
+return 2;
+return 3;
+return 10;
 `
 
     const lexer = new Lexer(input)
-    const parser = new Parser(lexer)
-    const program = parser.parseProgram()
+    const parse = new Parser(lexer)
+    const program = parse.parseProgram()
 
-    const expected = ['let x = 5;', 'let y = 10;', 'let foobar = 838383;']
+    const expected = ['return 2;', 'return 3;', 'return 10;']
 
     expect(program.statements.length).toBe(3)
     console.log(program.statements)

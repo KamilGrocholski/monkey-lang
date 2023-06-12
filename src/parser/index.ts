@@ -49,13 +49,6 @@ export default class Parser {
         this.registerPrefix(TOKEN_KIND.Minus, this.parsePrefixExpression)
 
         this.registerInfix(TOKEN_KIND.Plus, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.Minus, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.Slash, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.Asterisk, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.Equal, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.NotEqual, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.LessThan, this.parseInfixExpression)
-        this.registerInfix(TOKEN_KIND.GreaterThan, this.parseInfixExpression)
 
         this.currentToken = this.lexer.getNextToken()
         this.peekToken = this.lexer.getNextToken()
@@ -126,6 +119,46 @@ export default class Parser {
         return statement
     }
 
+    private parseIntegerLiteral(): IntegerLiteral | null {
+        const value = parseInt(this.currentToken.literal, 10)
+
+        if (isNaN(value)) {
+            return null
+        }
+
+        return new IntegerLiteral(this.currentToken, value)
+    }
+
+    private parseIdentifier(): Identifier {
+        return new Identifier(this.currentToken, this.currentToken.literal)
+    }
+
+    private parseExpression(precedence: Precedence): Expression | null {
+        const prefixFn = this.prefixParseFns[this.currentToken.kind]
+        if (!prefixFn) {
+            return null
+        }
+        let leftExp = prefixFn()
+
+        while (
+            !this.peekTokenIs(TOKEN_KIND.Semicolon) &&
+            precedence < this.peekPrecedence()
+        ) {
+            const infixFn = this.infixParseFns[this.currentToken.kind]
+            if (!infixFn) {
+                return null
+            }
+
+            this.nextToken()
+
+            if (leftExp) {
+                leftExp = infixFn(leftExp)
+            }
+        }
+
+        return leftExp
+    }
+
     private parseExpressionStatement(): ExpressionStatement | null {
         const statement = new ExpressionStatement(
             this.currentToken,
@@ -139,77 +172,28 @@ export default class Parser {
         return statement
     }
 
-    private parsePrefixExpression(): PrefixExpression | null {
+    private parsePrefixExpression(): PrefixExpression {
         const exp = new PrefixExpression(
             this.currentToken,
             this.currentToken.literal
         )
-
         this.nextToken()
-
-        exp.right = this.parseExpression(Precedence.LOWEST)
+        exp.right = this.parseExpression(Precedence.PREFIX)
 
         return exp
     }
 
-    private parseInfixExpression(
-        left: Expression | null
-    ): InfixExpression | null {
+    private parseInfixExpression(leftExp: Expression | null): InfixExpression {
         const exp = new InfixExpression(
             this.currentToken,
             this.currentToken.literal,
-            left
+            leftExp
         )
-
         const precedence = this.currentPrecedence()
         this.nextToken()
         exp.right = this.parseExpression(precedence)
 
         return exp
-    }
-
-    private parseIdentifier(): Identifier {
-        return new Identifier(this.currentToken, this.currentToken.literal)
-    }
-
-    private parseExpression(precedence: Precedence): Expression | null {
-        const prefixFn = this.prefixParseFns[this.currentToken.kind]
-        if (!prefixFn) {
-            this.pushNoPrefixParseFnError(this.currentToken.kind)
-            return null
-        }
-
-        let leftExp = prefixFn()
-
-        while (
-            !this.peekTokenIs(TOKEN_KIND.Semicolon) &&
-            precedence < this.peekPrecedence()
-        ) {
-            const infixFn = this.infixParseFns[this.peekToken.kind]
-            if (!infixFn) {
-                return leftExp
-            }
-            this.nextToken()
-
-            if (leftExp) {
-                leftExp = infixFn(leftExp)
-            }
-        }
-
-        return leftExp
-    }
-
-    private parseIntegerLiteral(): IntegerLiteral | null {
-        const value = parseInt(this.currentToken.literal, 10)
-
-        if (isNaN(value)) {
-            this.errors.push(
-                `could not parse ${this.currentToken.literal} as integer`
-            )
-            return null
-        }
-
-        return new IntegerLiteral(this.currentToken, value)
     }
 
     private nextToken(): void {
@@ -239,22 +223,18 @@ export default class Parser {
     }
 
     private registerPrefix(kind: TokenKind, fn: PrefixParseFn): void {
-        this.prefixParseFns[kind] = fn
+        this.prefixParseFns[kind] = fn.bind(this) // must use 'bind(this)'
     }
 
     private registerInfix(kind: TokenKind, fn: InfixParseFn): void {
-        this.infixParseFns[kind] = fn
-    }
-
-    private peekPrecedence(): Precedence {
-        return precedences[this.peekToken.kind] ?? Precedence.LOWEST
+        this.infixParseFns[kind] = fn.bind(this) // must use 'bind(this)'
     }
 
     private currentPrecedence(): Precedence {
         return precedences[this.currentToken.kind] ?? Precedence.LOWEST
     }
 
-    private pushNoPrefixParseFnError(kind: TokenKind): void {
-        this.errors.push(`No prefix parse function for ${kind} found`)
+    private peekPrecedence(): Precedence {
+        return precedences[this.peekToken.kind] ?? Precedence.LOWEST
     }
 }
