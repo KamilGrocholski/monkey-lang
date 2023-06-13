@@ -3,7 +3,8 @@ export const OBJ_TYPE = {
     INTEGER: 'INTEGER',
     BOOL: 'BOOL',
     NULL: 'NULL',
-}
+    STRING: 'STRING',
+} as const
 
 export abstract class Obj {
     abstract get type(): ObjType
@@ -37,6 +38,20 @@ export class Integer extends Obj {
 
     inspect(): string {
         return this.value.toString()
+    }
+}
+
+export class String extends Obj {
+    constructor(public value: string) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.STRING
+    }
+
+    inspect(): string {
+        return this.value
     }
 }
 
