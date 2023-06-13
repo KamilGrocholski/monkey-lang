@@ -4,11 +4,15 @@ import { Identifier } from './identifier'
 
 export class LetStatement extends Statement {
     constructor(
-        token: Token,
+        public token: Token,
         public name: Identifier | null = null,
         public value: Expression | null = null
     ) {
-        super(token)
+        super()
+    }
+
+    tokenLiteral(): string {
+        return this.token.literal
     }
 
     toString(): string {

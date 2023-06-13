@@ -4,11 +4,15 @@ import { Token } from '../../lexer'
 export class InfixExpression extends Expression {
     public right: Expression | null = null
     constructor(
-        token: Token,
+        public token: Token,
         public operator: string,
         public left: Expression | null = null
     ) {
-        super(token)
+        super()
+    }
+
+    tokenLiteral(): string {
+        return this.token.literal
     }
 
     toString(): string {

@@ -1,8 +1,8 @@
 import { Expression } from '..'
 import { Token } from '../../lexer'
 
-export class IntegerLiteral extends Expression {
-    constructor(public token: Token, public value: number) {
+export class StringLiteral extends Expression {
+    constructor(public token: Token, public value: string) {
         super()
     }
 
@@ -11,6 +11,6 @@ export class IntegerLiteral extends Expression {
     }
 
     toString(): string {
-        return this.token.literal
+        return this.value
     }
 }

@@ -2,8 +2,12 @@ import { Expression } from '..'
 import { Token } from '../../lexer'
 
 export class Identifier extends Expression {
-    constructor(token: Token, public value: string) {
-        super(token)
+    constructor(public token: Token, public value: string) {
+        super()
+    }
+
+    tokenLiteral(): string {
+        return this.token.literal
     }
 
     toString(): string {

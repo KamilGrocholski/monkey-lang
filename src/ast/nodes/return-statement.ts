@@ -2,8 +2,15 @@ import { Expression, Statement } from '..'
 import { Token } from '../../lexer'
 
 export class ReturnStatement extends Statement {
-    constructor(token: Token, public returnValue: Expression | null = null) {
-        super(token)
+    constructor(
+        public token: Token,
+        public returnValue: Expression | null = null
+    ) {
+        super()
+    }
+
+    tokenLiteral(): string {
+        return this.token.literal
     }
 
     toString(): string {

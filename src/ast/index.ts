@@ -1,26 +1,20 @@
-import { Token } from '../lexer'
-
 export abstract class AstNode {
-    constructor(public readonly token: Token) {}
-
-    tokenLiteral(): string {
-        return this.token.literal
-    }
+    abstract tokenLiteral(): string
 
     abstract toString(): string
 }
 
 export abstract class Statement extends AstNode {
-    constructor(token: Token) {
-        super(token)
+    constructor() {
+        super()
     }
 
     statementNode(): void {}
 }
 
 export abstract class Expression extends AstNode {
-    constructor(token: Token) {
-        super(token)
+    constructor() {
+        super()
     }
 
     expressionNode(): void {}

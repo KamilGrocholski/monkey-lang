@@ -1,6 +1,9 @@
-import { Statement } from '..'
+import { AstNode, Statement } from '..'
 
-export class Program {
+export class Program extends AstNode {
+    constructor() {
+        super()
+    }
     statements: Statement[] = []
 
     tokenLiteral(): string {
