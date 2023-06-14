@@ -37,8 +37,7 @@ describe('infix', () => {
             },
         ],
     ])('infix: success', (input, string, token) => {
-        const { parser, program } = parseTester(input)
-        console.log(program.statements)
+        const { program } = parseTester(input)
         expect(program.toString()).toBe(string)
     })
 })

@@ -4,6 +4,8 @@ export const OBJ_TYPE = {
     BOOL: 'BOOL',
     NULL: 'NULL',
     STRING: 'STRING',
+    RETURN_VALUE: 'RETURN_VALUE',
+    ERROR: 'ERROR',
 } as const
 
 export abstract class Obj {
@@ -56,6 +58,10 @@ export class String extends Obj {
 }
 
 export class Null extends Obj {
+    constructor() {
+        super()
+    }
+
     get type(): ObjType {
         return OBJ_TYPE.NULL
     }
@@ -65,3 +71,31 @@ export class Null extends Obj {
     }
 }
 export const NULL = new Null()
+
+export class ReturnValue extends Obj {
+    constructor(public value: Obj) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.RETURN_VALUE
+    }
+
+    inspect(): string {
+        return this.value.inspect()
+    }
+}
+
+export class ErrorObj extends Obj {
+    constructor(public message: string) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.ERROR
+    }
+
+    inspect(): string {
+        return `ERROR: ${this.message}`
+    }
+}
