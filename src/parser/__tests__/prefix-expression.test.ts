@@ -22,7 +22,7 @@ describe('prefix expression', () => {
             },
         ],
     ])('ahga', (input, string, token) => {
-        const { parser, program } = parseTester(input)
+        const { program } = parseTester(input)
         expect(program.toString()).toBe(string)
     })
 })

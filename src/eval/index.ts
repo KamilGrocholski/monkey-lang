@@ -11,11 +11,16 @@ import {
     Obj,
     TRUE,
     String,
+    ReturnValue,
+    ErrorObj,
 } from '../objects'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
 import { TOKEN_KIND } from '../lexer'
 import { InfixExpression } from '../ast/nodes/infix-expression'
+import { IfExpression } from '../ast/nodes/if-expression'
+import { ReturnStatement } from '../ast/nodes/return-statement'
+import { BlockStatement } from '../ast/nodes/block-statement'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
@@ -36,12 +41,36 @@ export function evaluate(node: AstNode | null): Obj | null {
     }
     if (node instanceof PrefixExpression) {
         const right = evaluate(node.right)
+        if (isError(right)) {
+            return right
+        }
         return evalPrefixExpression(node.operator, right)
     }
     if (node instanceof InfixExpression) {
         const left = evaluate(node.left)
         const right = evaluate(node.right)
+        if (isError(left)) {
+            return left
+        }
+        if (isError(right)) {
+            return right
+        }
         return evalInfixExpression(node.operator, left, right)
+    }
+    if (node instanceof IfExpression) {
+        return evalIfExpression(node)
+    }
+    if (node instanceof ReturnStatement) {
+        const value = evaluate(node.returnValue)
+        if (isError(value)) {
+            return value
+        }
+        if (value) {
+            return new ReturnValue(value)
+        }
+    }
+    if (node instanceof BlockStatement) {
+        return evalStatements(node.statements)
     }
 
     return null
@@ -54,16 +83,25 @@ function evalPrefixExpression(operator: string, right: Obj | null): Obj | null {
         case '-':
             return evalMinusPrefixOperatorExpression(right)
         default:
-            return NULL
+            return newError(`unknown operator: ${operator}${right?.type}`)
     }
 }
 
 function evalStatements(statements: Statement[]): Obj | null {
     let result: Obj | null = null
 
-    statements.forEach((s) => {
+    for (const s of statements) {
         result = evaluate(s)
-    })
+
+        if (result !== null) {
+            if (result instanceof ReturnValue) {
+                return result.value
+            }
+            if (result instanceof ErrorObj) {
+                return result
+            }
+        }
+    }
 
     return result
 }
@@ -81,7 +119,7 @@ function evalBangOperatorExpression(right: Obj | null): Obj {
 
 function evalMinusPrefixOperatorExpression(right: Obj | null): Obj {
     if (right?.type !== OBJ_TYPE.INTEGER) {
-        return NULL
+        return newError(`unknown operator: -${right?.type}`)
     }
 
     const value = (right as unknown as IntegerLiteral).value
@@ -93,14 +131,20 @@ function evalInfixExpression(
     left: Obj | null,
     right: Obj | null
 ): Obj {
+    if (left?.type !== right?.type) {
+        return newError(
+            `type mismatch: ${left?.type} ${operator} ${right?.type}`
+        )
+    }
     if (left instanceof Integer && right instanceof Integer) {
         return evalIntegerInfixExpression(operator, left, right)
     }
     if (left instanceof String && right instanceof String) {
         return evalStringInfixExpression(operator, left, right)
     }
-
-    throw new Error(`no match for pair: ${left?.type} and ${right?.type}`)
+    return newError(
+        `unknown operator: ${left?.type} ${operator} ${right?.type}`
+    )
 }
 
 function evalIntegerInfixExpression(
@@ -108,7 +152,9 @@ function evalIntegerInfixExpression(
     left: Integer | null,
     right: Integer | null
 ): Obj {
-    if (!left || !right) return NULL
+    if (!left || !right) {
+        return newError(`lack of arguments: ${left?.type} ${right?.type}`)
+    }
 
     const leftValue = left.value
     const rightValue = right.value
@@ -131,7 +177,9 @@ function evalIntegerInfixExpression(
         case TOKEN_KIND.NotEqual:
             return boolLookup(leftValue !== rightValue)
         default:
-            throw new Error(`unknown operator: ${operator}`)
+            return newError(
+                `unknown operator: ${left.type} ${operator} ${right.type}`
+            )
     }
 }
 
@@ -141,11 +189,47 @@ function evalStringInfixExpression(
     right: String | null
 ): Obj {
     if (!left || !right) {
-        throw new Error('required left and right')
+        return newError(
+            `lack of arguments: ${left?.type} ${operator} ${right?.type}`
+        )
     }
     if (operator === TOKEN_KIND.Plus) {
         return new String(left.value + right.value)
     }
 
-    throw new Error('operator does not match')
+    return newError(`unknown operator: ${left.type} ${operator} ${right.type}`)
+}
+
+function isTruthy(obj: Obj | null): boolean {
+    switch (obj) {
+        case NULL:
+        case FALSE:
+            return false
+        case TRUE:
+        default:
+            return true
+    }
+}
+
+function evalIfExpression(exp: IfExpression): Obj | null {
+    const condition = evaluate(exp.condition)
+    if (isError(condition)) {
+        return condition
+    }
+
+    if (isTruthy(condition)) {
+        return evaluate(exp.consequence)
+    } else if (exp.alternative !== null) {
+        return evaluate(exp.alternative)
+    } else {
+        return NULL
+    }
+}
+
+function newError(format: string): ErrorObj {
+    return new ErrorObj(format)
+}
+
+function isError(obj: Obj | null): boolean {
+    return obj?.type === OBJ_TYPE.ERROR && obj instanceof ErrorObj
 }
