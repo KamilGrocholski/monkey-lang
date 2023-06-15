@@ -13,6 +13,7 @@ import {
     String,
     ReturnValue,
     ErrorObj,
+    Environment,
 } from '../objects'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
@@ -21,12 +22,14 @@ import { InfixExpression } from '../ast/nodes/infix-expression'
 import { IfExpression } from '../ast/nodes/if-expression'
 import { ReturnStatement } from '../ast/nodes/return-statement'
 import { BlockStatement } from '../ast/nodes/block-statement'
+import { LetStatement } from '../ast/nodes/let-statement'
+import { Identifier } from '../ast/nodes/identifier'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
 }
 
-export function evaluate(node: AstNode | null): Obj | null {
+export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     if (node instanceof IntegerLiteral) {
         return new Integer(node.value)
     }
@@ -34,21 +37,21 @@ export function evaluate(node: AstNode | null): Obj | null {
         return boolLookup(node.value)
     }
     if (node instanceof Program) {
-        return evalStatements(node.statements)
+        return evalStatements(node.statements, env)
     }
     if (node instanceof ExpressionStatement) {
-        return evaluate(node.exp)
+        return evaluate(node.exp, env)
     }
     if (node instanceof PrefixExpression) {
-        const right = evaluate(node.right)
+        const right = evaluate(node.right, env)
         if (isError(right)) {
             return right
         }
         return evalPrefixExpression(node.operator, right)
     }
     if (node instanceof InfixExpression) {
-        const left = evaluate(node.left)
-        const right = evaluate(node.right)
+        const left = evaluate(node.left, env)
+        const right = evaluate(node.right, env)
         if (isError(left)) {
             return left
         }
@@ -58,10 +61,10 @@ export function evaluate(node: AstNode | null): Obj | null {
         return evalInfixExpression(node.operator, left, right)
     }
     if (node instanceof IfExpression) {
-        return evalIfExpression(node)
+        return evalIfExpression(node, env)
     }
     if (node instanceof ReturnStatement) {
-        const value = evaluate(node.returnValue)
+        const value = evaluate(node.returnValue, env)
         if (isError(value)) {
             return value
         }
@@ -70,7 +73,20 @@ export function evaluate(node: AstNode | null): Obj | null {
         }
     }
     if (node instanceof BlockStatement) {
-        return evalStatements(node.statements)
+        return evalStatements(node.statements, env)
+    }
+    if (node instanceof LetStatement) {
+        const value = evaluate(node.value, env)
+        if (isError(value)) {
+            return value
+        }
+        if (node.name?.value) {
+            env.set(node.name.value, value)
+        }
+        return value
+    }
+    if (node instanceof Identifier) {
+        return evalIdentifier(node, env)
     }
 
     return null
@@ -87,11 +103,11 @@ function evalPrefixExpression(operator: string, right: Obj | null): Obj | null {
     }
 }
 
-function evalStatements(statements: Statement[]): Obj | null {
+function evalStatements(statements: Statement[], env: Environment): Obj | null {
     let result: Obj | null = null
 
     for (const s of statements) {
-        result = evaluate(s)
+        result = evaluate(s, env)
 
         if (result !== null) {
             if (result instanceof ReturnValue) {
@@ -211,19 +227,27 @@ function isTruthy(obj: Obj | null): boolean {
     }
 }
 
-function evalIfExpression(exp: IfExpression): Obj | null {
-    const condition = evaluate(exp.condition)
+function evalIfExpression(exp: IfExpression, env: Environment): Obj | null {
+    const condition = evaluate(exp.condition, env)
     if (isError(condition)) {
         return condition
     }
 
     if (isTruthy(condition)) {
-        return evaluate(exp.consequence)
+        return evaluate(exp.consequence, env)
     } else if (exp.alternative !== null) {
-        return evaluate(exp.alternative)
+        return evaluate(exp.alternative, env)
     } else {
         return NULL
     }
+}
+
+function evalIdentifier(node: Identifier, env: Environment): Obj | null {
+    const value = env.get(node.value)
+    if (!value) {
+        return newError(`identifier not found: ${node.value}`)
+    }
+    return value
 }
 
 function newError(format: string): ErrorObj {

@@ -6,6 +6,7 @@ export const OBJ_TYPE = {
     STRING: 'STRING',
     RETURN_VALUE: 'RETURN_VALUE',
     ERROR: 'ERROR',
+    ENVIRONMENT: 'ENVIRONMENT',
 } as const
 
 export abstract class Obj {
@@ -97,5 +98,24 @@ export class ErrorObj extends Obj {
 
     inspect(): string {
         return `ERROR: ${this.message}`
+    }
+}
+
+export class Environment {
+    store: Map<string, Obj> = new Map()
+
+    get(key: string): Obj | null {
+        const obj = this.store.get(key)
+        if (obj) {
+            return obj
+        }
+        return null
+    }
+
+    set(key: string, obj: Obj | null): Obj | null {
+        if (obj) {
+            this.store.set(key, obj)
+        }
+        return obj
     }
 }

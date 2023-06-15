@@ -1,6 +1,29 @@
 import { evaluate } from '..'
-import { Bool, Integer, Null, ErrorObj, OBJ_TYPE } from '../../objects'
+import { Program } from '../../ast/nodes/program'
+import {
+    Bool,
+    Integer,
+    Null,
+    ErrorObj,
+    OBJ_TYPE,
+    Environment,
+    Obj,
+} from '../../objects'
+import Parser from '../../parser'
 import { parseTester } from '../../parser/__tests__/infix-expression.test'
+
+export function evalTester(input: string): {
+    program: Program
+    parser: Parser
+    evaluated: Obj | null
+    env: Environment
+} {
+    const { program, parser } = parseTester(input)
+    const env = new Environment()
+    const evaluated = evaluate(program, env)
+
+    return { program, parser, evaluated, env }
+}
 
 describe('eval', () => {
     test('bang operator', () => {
@@ -14,8 +37,7 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, bool]) => {
-            const { program } = parseTester(input)
-            const evaluated = evaluate(program)
+            const { evaluated } = evalTester(input)
             expect(evaluated?.type).toBe(OBJ_TYPE.BOOL)
             expect(evaluated).toBeInstanceOf(Bool)
             expect((evaluated as unknown as Bool).value).toBe(bool)
@@ -46,8 +68,7 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, number]) => {
-            const { program } = parseTester(input)
-            const evaluated = evaluate(program)
+            const { evaluated } = evalTester(input)
             expect(evaluated?.type).toBe(OBJ_TYPE.INTEGER)
             expect(evaluated).toBeInstanceOf(Integer)
             expect((evaluated as unknown as Integer).value).toBe(number)
@@ -66,8 +87,7 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, result]) => {
-            const { program } = parseTester(input)
-            const evaluated = evaluate(program)
+            const { evaluated } = evalTester(input)
             if (result !== null) {
                 expect(evaluated).toBeInstanceOf(Integer)
                 expect((evaluated as unknown as Integer).value).toBe(result)
@@ -86,8 +106,7 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, result]) => {
-            const { program } = parseTester(input)
-            const evaluated = evaluate(program)
+            const { evaluated } = evalTester(input)
             expect(evaluated).toBeInstanceOf(Integer)
             expect((evaluated as unknown as Integer).value).toBe(result)
         })
@@ -116,8 +135,19 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, result]) => {
-            const { program } = parseTester(input)
-            const evaluated = evaluate(program)
+            const { evaluated } = evalTester(input)
+            expect(evaluated).toBeInstanceOf(ErrorObj)
+            expect((evaluated as unknown as ErrorObj).message).toBe(result)
+        })
+    })
+
+    test('let', () => {
+        const data: [string, string][] = [
+            ['foobar', 'identifier not found: foobar'],
+        ]
+
+        data.forEach(([input, result]) => {
+            const { evaluated } = evalTester(input)
             expect(evaluated).toBeInstanceOf(ErrorObj)
             expect((evaluated as unknown as ErrorObj).message).toBe(result)
         })

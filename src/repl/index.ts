@@ -3,6 +3,7 @@ import readline from 'readline'
 import { Lexer } from '../lexer'
 import Parser from '../parser'
 import { evaluate } from '../eval'
+import { Environment } from '../objects'
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -11,6 +12,8 @@ const rl = readline.createInterface({
 })
 
 rl.prompt()
+
+const env = new Environment()
 
 rl.on('line', (input) => {
     const lexer = new Lexer(input)
@@ -22,7 +25,7 @@ rl.on('line', (input) => {
         return
     }
 
-    const evaluated = evaluate(program)
+    const evaluated = evaluate(program, env)
     console.log(evaluated?.inspect())
 
     rl.prompt()
