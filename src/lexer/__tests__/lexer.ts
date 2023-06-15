@@ -38,6 +38,8 @@ test('test add function', () => {
 
         10 == 10;
         10 != 9;
+        "foobar"
+        "foo bar"
         `
 
     const lexer = new Lexer(input)
@@ -119,6 +121,9 @@ test('test add function', () => {
         { kind: TOKEN_KIND.NotEqual, literal: '!=' },
         { kind: TOKEN_KIND.Int, literal: '9' },
         { kind: TOKEN_KIND.Semicolon, literal: ';' },
+
+        { kind: TOKEN_KIND.String, literal: 'foobar' },
+        { kind: TOKEN_KIND.String, literal: 'foobar' },
 
         { kind: TOKEN_KIND.Eof, literal: 'eof' },
     ]

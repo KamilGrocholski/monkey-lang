@@ -1,4 +1,4 @@
-import { AstNode, Statement } from '../ast'
+import { AstNode, Expression, Statement } from '../ast'
 import { BooleanLiteral } from '../ast/nodes/boolean-literal'
 import { IntegerLiteral } from '../ast/nodes/integer-literal'
 import { Program } from '../ast/nodes/program'
@@ -14,6 +14,8 @@ import {
     ReturnValue,
     ErrorObj,
     Environment,
+    FunctionObject,
+    BUILTINS,
 } from '../objects'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
@@ -24,6 +26,9 @@ import { ReturnStatement } from '../ast/nodes/return-statement'
 import { BlockStatement } from '../ast/nodes/block-statement'
 import { LetStatement } from '../ast/nodes/let-statement'
 import { Identifier } from '../ast/nodes/identifier'
+import { FunctionLiteral } from '../ast/nodes/function-literal'
+import { CallExpression } from '../ast/nodes/call-expression'
+import { StringLiteral } from '../ast/nodes/string-literal'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
@@ -32,6 +37,9 @@ function boolLookup(bool: boolean): Bool {
 export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     if (node instanceof IntegerLiteral) {
         return new Integer(node.value)
+    }
+    if (node instanceof StringLiteral) {
+        return new String(node.value)
     }
     if (node instanceof BooleanLiteral) {
         return boolLookup(node.value)
@@ -87,6 +95,28 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     }
     if (node instanceof Identifier) {
         return evalIdentifier(node, env)
+    }
+    if (node instanceof FunctionLiteral) {
+        const params = node.parameters
+        const body = node.body
+        if (params && body) {
+            return new FunctionObject(params, body, env)
+        }
+        return newError(`some error...`) // TODO
+    }
+    if (node instanceof CallExpression) {
+        const fn = evaluate(node.fn, env)
+        if (isError(fn)) {
+            return fn
+        }
+        if (node.args) {
+            const args = evalExpressions(node.args, env)
+            if (args.length === 1 && isError(args[0])) {
+                return args[0]
+            }
+
+            return applyFunction(fn, args)
+        }
     }
 
     return null
@@ -244,13 +274,65 @@ function evalIfExpression(exp: IfExpression, env: Environment): Obj | null {
 
 function evalIdentifier(node: Identifier, env: Environment): Obj | null {
     const value = env.get(node.value)
-    if (!value) {
-        return newError(`identifier not found: ${node.value}`)
+    if (value) {
+        return value
     }
-    return value
+    const builtin = BUILTINS[node.value]
+    if (builtin) {
+        return builtin
+    }
+    return newError(`identifier not found: ${node.value}`)
 }
 
-function newError(format: string): ErrorObj {
+function evalExpressions(exps: Expression[], env: Environment): (Obj | null)[] {
+    const result: (Obj | null)[] = []
+    for (const exp of exps) {
+        const evaluated = evaluate(exp, env)
+        if (isError(evaluated)) {
+            return [evaluated]
+        }
+        result.push(evaluated)
+    }
+
+    return result
+}
+
+function applyFunction(fn: Obj | null, args: (Obj | null)[]): Obj | null {
+    if (fn instanceof FunctionObject && fn.type === OBJ_TYPE.FUNCTION) {
+        const extendedEnv = extendedFunctionEnv(fn, args)
+        const evaluated = evaluate(fn.body, extendedEnv)
+
+        return unwrapReturnValue(evaluated)
+    }
+
+    return newError(`not a function: ${fn?.type}`)
+}
+
+/**
+    closure env + main env
+*/
+function extendedFunctionEnv(
+    fn: FunctionObject,
+    args: (Obj | null)[]
+): Environment {
+    const closureEnv = new Environment(fn.env)
+
+    fn.params.forEach((param, paramIndex) => {
+        closureEnv.set(param.value, args[paramIndex])
+    })
+
+    return closureEnv
+}
+
+function unwrapReturnValue(obj: Obj | null): Obj | null {
+    if (obj instanceof ReturnValue && obj.type === OBJ_TYPE.RETURN_VALUE) {
+        return obj.value
+    }
+
+    return obj
+}
+
+export function newError(format: string): ErrorObj {
     return new ErrorObj(format)
 }
 

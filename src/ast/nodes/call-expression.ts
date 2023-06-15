@@ -15,8 +15,8 @@ export class CallExpression extends Expression {
     }
 
     toString(): string {
-        return `${this.fn?.toString()}(${this.args
-            ?.map((arg) => arg.toString())
-            .join(', ')})`
+        const args = this.args?.map((arg) => arg.toString()).join(', ')
+
+        return `${this.fn?.toString()}(${args})`
     }
 }

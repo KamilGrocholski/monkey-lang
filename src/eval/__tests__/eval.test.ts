@@ -3,11 +3,13 @@ import { Program } from '../../ast/nodes/program'
 import {
     Bool,
     Integer,
-    Null,
+    String,
     ErrorObj,
     OBJ_TYPE,
     Environment,
     Obj,
+    FunctionObject,
+    Null,
 } from '../../objects'
 import Parser from '../../parser'
 import { parseTester } from '../../parser/__tests__/infix-expression.test'
@@ -25,6 +27,44 @@ export function evalTester(input: string): {
     return { program, parser, evaluated, env }
 }
 
+function testIntegerObject(input: string, expected: number) {
+    const { evaluated } = evalTester(input)
+    expect(evaluated).toBeInstanceOf(Integer)
+    expect(evaluated?.type).toBe(OBJ_TYPE.INTEGER)
+    const int = evaluated as Integer
+    expect(int.value).toBe(expected)
+}
+
+function testStringObject(input: string, expected: string) {
+    const { evaluated } = evalTester(input)
+    expect(evaluated).toBeInstanceOf(String)
+    expect(evaluated?.type).toBe(OBJ_TYPE.STRING)
+    const errorObj = evaluated as String
+    expect(errorObj.value).toBe(expected)
+}
+
+function testBoolObject(input: string, expected: boolean) {
+    const { evaluated } = evalTester(input)
+    expect(evaluated).toBeInstanceOf(Bool)
+    expect(evaluated?.type).toBe(OBJ_TYPE.BOOL)
+    const int = evaluated as Bool
+    expect(int.value).toBe(expected)
+}
+
+function testNullObject(input: string) {
+    const { evaluated } = evalTester(input)
+    expect(evaluated).toBeInstanceOf(Null)
+    expect(evaluated?.type).toBe(OBJ_TYPE.NULL)
+}
+
+function testErrorObject(input: string, expected: string) {
+    const { evaluated } = evalTester(input)
+    expect(evaluated).toBeInstanceOf(ErrorObj)
+    expect(evaluated?.type).toBe(OBJ_TYPE.ERROR)
+    const errorObj = evaluated as ErrorObj
+    expect(errorObj.message).toBe(expected)
+}
+
 describe('eval', () => {
     test('bang operator', () => {
         const data: [string, boolean][] = [
@@ -36,11 +76,8 @@ describe('eval', () => {
             ['!!5', true],
         ]
 
-        data.forEach(([input, bool]) => {
-            const { evaluated } = evalTester(input)
-            expect(evaluated?.type).toBe(OBJ_TYPE.BOOL)
-            expect(evaluated).toBeInstanceOf(Bool)
-            expect((evaluated as unknown as Bool).value).toBe(bool)
+        data.forEach(([input, expected]) => {
+            testBoolObject(input, expected)
         })
     })
 
@@ -67,11 +104,8 @@ describe('eval', () => {
             ['(5 + 10 * 2 + 15 / 3) * 2 + -10', 50],
         ]
 
-        data.forEach(([input, number]) => {
-            const { evaluated } = evalTester(input)
-            expect(evaluated?.type).toBe(OBJ_TYPE.INTEGER)
-            expect(evaluated).toBeInstanceOf(Integer)
-            expect((evaluated as unknown as Integer).value).toBe(number)
+        data.forEach(([input, expected]) => {
+            testIntegerObject(input, expected)
         })
     })
 
@@ -87,12 +121,10 @@ describe('eval', () => {
         ]
 
         data.forEach(([input, result]) => {
-            const { evaluated } = evalTester(input)
             if (result !== null) {
-                expect(evaluated).toBeInstanceOf(Integer)
-                expect((evaluated as unknown as Integer).value).toBe(result)
+                testIntegerObject(input, result)
             } else {
-                expect(evaluated).toBeInstanceOf(Null)
+                testNullObject(input)
             }
         })
     })
@@ -105,10 +137,8 @@ describe('eval', () => {
             ['9; return 2 * 5; 9;', 10],
         ]
 
-        data.forEach(([input, result]) => {
-            const { evaluated } = evalTester(input)
-            expect(evaluated).toBeInstanceOf(Integer)
-            expect((evaluated as unknown as Integer).value).toBe(result)
+        data.forEach(([input, expected]) => {
+            testIntegerObject(input, expected)
         })
     })
 
@@ -132,12 +162,11 @@ describe('eval', () => {
             `,
                 'unknown operator: BOOL + BOOL',
             ],
+            ['"Hello" - "World"', 'unknown-operator: STRING - STRING'],
         ]
 
-        data.forEach(([input, result]) => {
-            const { evaluated } = evalTester(input)
-            expect(evaluated).toBeInstanceOf(ErrorObj)
-            expect((evaluated as unknown as ErrorObj).message).toBe(result)
+        data.forEach(([input, expected]) => {
+            testErrorObject(input, expected)
         })
     })
 
@@ -146,10 +175,67 @@ describe('eval', () => {
             ['foobar', 'identifier not found: foobar'],
         ]
 
-        data.forEach(([input, result]) => {
-            const { evaluated } = evalTester(input)
-            expect(evaluated).toBeInstanceOf(ErrorObj)
-            expect((evaluated as unknown as ErrorObj).message).toBe(result)
+        data.forEach(([input, expected]) => {
+            testErrorObject(input, expected)
+        })
+    })
+
+    test('function literal', () => {
+        const input = `fn(x) {x + 2;};`
+
+        const { evaluated } = evalTester(input)
+        expect(evaluated).toBeInstanceOf(FunctionObject)
+        const functionObj = evaluated as FunctionObject
+        expect(functionObj.params.length).toBe(1)
+        expect(functionObj.params[0].toString()).toBe('x')
+        expect(functionObj.body.toString()).toBe('(x + 2)')
+        console.log(functionObj.inspect())
+    })
+
+    test('function application', () => {
+        const data: [string, number][] = [
+            ['let identity = fn(x) { x; }; identity(5);', 5],
+            ['let identity = fn(x) { return x; }; identity(5);', 5],
+            ['let double = fn(x) { x * 2; }; double(5);', 10],
+            ['let add = fn(x, y) { x + y; }; add(5, 5);', 10],
+            ['let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));', 20],
+            ['fn(x) { x; }(5)', 5],
+        ]
+
+        data.forEach(([input, expected]) => {
+            testIntegerObject(input, expected)
+        })
+    })
+
+    test('closures', () => {
+        const input = `
+let newAdder = fn(x) {
+    fn (y) {x + y};
+};
+let addTwo = newAdder(2)
+addTwo(2)
+`
+
+        testIntegerObject(input, 4)
+    })
+
+    test('string literal', () => {
+        const input = '"Hello World!"'
+        testStringObject(input, 'Hello World!')
+    })
+
+    test('builtin functions', () => {
+        const data: [string, unknown][] = []
+
+        data.forEach(([input, expected]) => {
+            if (typeof expected === 'number') {
+                testIntegerObject(input, expected)
+                return
+            }
+            if (typeof expected === 'string') {
+                testErrorObject(input, expected)
+                return
+            }
         })
     })
 })

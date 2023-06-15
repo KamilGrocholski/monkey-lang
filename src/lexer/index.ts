@@ -94,62 +94,65 @@ export class Lexer {
     public getNextToken(): Token {
         this.skipWhitespace()
 
-        let tok: Token | undefined
+        let token: Token | undefined
         switch (this.ch) {
             case '{':
-                tok = createToken(TOKEN_KIND.LCurly, this.ch)
+                token = createToken(TOKEN_KIND.LCurly, this.ch)
                 break
             case '}':
-                tok = createToken(TOKEN_KIND.RCurly, this.ch)
+                token = createToken(TOKEN_KIND.RCurly, this.ch)
                 break
             case '(':
-                tok = createToken(TOKEN_KIND.LParen, this.ch)
+                token = createToken(TOKEN_KIND.LParen, this.ch)
                 break
             case ')':
-                tok = createToken(TOKEN_KIND.RParen, this.ch)
+                token = createToken(TOKEN_KIND.RParen, this.ch)
                 break
             case ',':
-                tok = createToken(TOKEN_KIND.Comma, this.ch)
+                token = createToken(TOKEN_KIND.Comma, this.ch)
                 break
             case '!':
                 if (this.peek() === '=') {
                     this.readChar()
-                    tok = createToken(TOKEN_KIND.NotEqual, '!=')
+                    token = createToken(TOKEN_KIND.NotEqual, '!=')
                 } else {
-                    tok = createToken(TOKEN_KIND.Bang, this.ch)
+                    token = createToken(TOKEN_KIND.Bang, this.ch)
                 }
                 break
             case '>':
-                tok = createToken(TOKEN_KIND.GreaterThan, this.ch)
+                token = createToken(TOKEN_KIND.GreaterThan, this.ch)
                 break
             case '<':
-                tok = createToken(TOKEN_KIND.LessThan, this.ch)
+                token = createToken(TOKEN_KIND.LessThan, this.ch)
                 break
             case '*':
-                tok = createToken(TOKEN_KIND.Asterisk, this.ch)
+                token = createToken(TOKEN_KIND.Asterisk, this.ch)
                 break
             case '/':
-                tok = createToken(TOKEN_KIND.Slash, this.ch)
+                token = createToken(TOKEN_KIND.Slash, this.ch)
                 break
             case '-':
-                tok = createToken(TOKEN_KIND.Minus, this.ch)
+                token = createToken(TOKEN_KIND.Minus, this.ch)
                 break
             case ';':
-                tok = createToken(TOKEN_KIND.Semicolon, this.ch)
+                token = createToken(TOKEN_KIND.Semicolon, this.ch)
                 break
             case '+':
-                tok = createToken(TOKEN_KIND.Plus, this.ch)
+                token = createToken(TOKEN_KIND.Plus, this.ch)
                 break
             case '=':
                 if (this.peek() === '=') {
                     this.readChar()
-                    tok = createToken(TOKEN_KIND.Equal, '==')
+                    token = createToken(TOKEN_KIND.Equal, '==')
                 } else {
-                    tok = createToken(TOKEN_KIND.Assign, this.ch)
+                    token = createToken(TOKEN_KIND.Assign, this.ch)
                 }
                 break
+            case '"':
+                token = createToken(TOKEN_KIND.String, this.readString())
+                break
             case '\0':
-                tok = createToken(TOKEN_KIND.Eof, 'eof')
+                token = createToken(TOKEN_KIND.Eof, 'eof')
                 break
         }
 
@@ -163,12 +166,12 @@ export class Lexer {
             }
         } else if (isNumber(this.ch)) {
             return createToken(TOKEN_KIND.Int, this.readInt())
-        } else if (!tok) {
+        } else if (!token) {
             return createToken(TOKEN_KIND.Illegal, this.ch)
         }
 
         this.readChar()
-        return tok as Token
+        return token as Token
     }
 
     private peek(): string {
@@ -215,6 +218,21 @@ export class Lexer {
         const position = this.position
 
         while (isNumber(this.ch)) {
+            this.readChar()
+        }
+
+        return this.input.slice(position, this.position)
+    }
+
+    private readString(): string {
+        const position = this.position + 1
+
+        this.readChar()
+
+        while (this.ch !== '"') {
+            if (this.ch === '\0') {
+                break
+            }
             this.readChar()
         }
 

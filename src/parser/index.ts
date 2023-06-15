@@ -26,6 +26,7 @@ const enum Precedence {
     PRODUCT,
     PREFIX,
     CALL,
+    INDEX,
 }
 
 const precedences: { [key: string]: number } = {
@@ -37,6 +38,8 @@ const precedences: { [key: string]: number } = {
     [TOKEN_KIND.Minus]: Precedence.SUM,
     [TOKEN_KIND.Slash]: Precedence.PRODUCT,
     [TOKEN_KIND.Asterisk]: Precedence.PRODUCT,
+    [TOKEN_KIND.LParen]: Precedence.CALL,
+    [TOKEN_KIND.LSquare]: Precedence.INDEX,
 }
 
 export default class Parser {
@@ -150,6 +153,10 @@ export default class Parser {
         return new IntegerLiteral(this.currentToken, value)
     }
 
+    private parseStringLiteral(): StringLiteral {
+        return new StringLiteral(this.currentToken, this.currentToken.literal)
+    }
+
     private parseBoolean(): Expression {
         return new BooleanLiteral(
             this.currentToken,
@@ -164,6 +171,7 @@ export default class Parser {
     private parseExpression(precedence: Precedence): Expression | null {
         const prefixFn = this.prefixParseFns[this.currentToken.kind]
         if (!prefixFn) {
+            this.errors.push(`no prefixParseFn for: ${this.currentToken.kind}`)
             return null
         }
         let leftExp = prefixFn()
@@ -263,10 +271,6 @@ export default class Parser {
         return identifiers
     }
 
-    private parseStringLiteral(): StringLiteral {
-        return new StringLiteral(this.currentToken, this.currentToken.literal)
-    }
-
     private parseCallExpression(fn: Expression | null): CallExpression | null {
         const exp = new CallExpression(this.currentToken, fn)
 
@@ -284,9 +288,9 @@ export default class Parser {
         }
 
         this.nextToken()
-        const exp = this.parseExpression(Precedence.LOWEST)
-        if (exp) {
-            args.push(exp)
+        const firstExp = this.parseExpression(Precedence.LOWEST)
+        if (firstExp) {
+            args.push(firstExp)
         }
 
         while (this.peekTokenIs(TOKEN_KIND.Comma)) {
@@ -301,7 +305,8 @@ export default class Parser {
         }
 
         if (!this.expectPeek(TOKEN_KIND.RParen)) {
-            return null
+            return args
+            // return null
         }
 
         return args

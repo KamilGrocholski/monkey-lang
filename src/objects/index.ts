@@ -1,3 +1,7 @@
+import { BlockStatement } from '../ast/nodes/block-statement'
+import { Identifier } from '../ast/nodes/identifier'
+import { newError } from '../eval'
+
 export type ObjType = (typeof OBJ_TYPE)[keyof typeof OBJ_TYPE]
 export const OBJ_TYPE = {
     INTEGER: 'INTEGER',
@@ -7,6 +11,8 @@ export const OBJ_TYPE = {
     RETURN_VALUE: 'RETURN_VALUE',
     ERROR: 'ERROR',
     ENVIRONMENT: 'ENVIRONMENT',
+    FUNCTION: 'FUNCTION',
+    BUILTIN: 'BUILTIN',
 } as const
 
 export abstract class Obj {
@@ -103,9 +109,15 @@ export class ErrorObj extends Obj {
 
 export class Environment {
     store: Map<string, Obj> = new Map()
+    outer?: Environment
+
+    constructor(outer?: Environment) {
+        this.outer = outer
+    }
 
     get(key: string): Obj | null {
-        const obj = this.store.get(key)
+        let obj = this.store.get(key) ?? this.outer?.store.get(key)
+
         if (obj) {
             return obj
         }
@@ -118,4 +130,54 @@ export class Environment {
         }
         return obj
     }
+}
+
+export class FunctionObject extends Obj {
+    constructor(
+        public params: Identifier[],
+        public body: BlockStatement,
+        public env: Environment
+    ) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.FUNCTION
+    }
+
+    inspect(): string {
+        const paramsString = this.params.map((p) => p.toString()).join(', ')
+
+        return `fn(${paramsString}) {\n ${this.body.toString()}\n}`
+    }
+}
+
+export type BuiltinFunction = (...args: (Obj | null)[]) => Obj
+export class Builtin extends Obj {
+    constructor(public fn: BuiltinFunction) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.BUILTIN
+    }
+
+    inspect(): string {
+        return 'builtin function'
+    }
+}
+export const BUILTINS: { [key: string]: Builtin } = {
+    len: new Builtin((...args) => {
+        if (args.length !== 1) {
+            return newError(
+                `wrong number of arguments: got=${args.length}, expected=1`
+            )
+        }
+
+        const arg = args[0]
+        if (arg instanceof String) {
+            return new Integer(arg.value.length)
+        }
+        return newError(`argument to 'len' not supported, got ${arg?.type}`)
+    }),
 }
