@@ -10,6 +10,8 @@ import {
     Obj,
     FunctionObject,
     Null,
+    Hash,
+    HashKey,
 } from '../../objects'
 import Parser from '../../parser'
 import { parseTester } from '../../parser/__tests__/infix-expression.test'
@@ -162,7 +164,7 @@ describe('eval', () => {
             `,
                 'unknown operator: BOOL + BOOL',
             ],
-            ['"Hello" - "World"', 'unknown-operator: STRING - STRING'],
+            ['"Hello" - "World"', 'unknown operator: STRING - STRING'],
         ]
 
         data.forEach(([input, expected]) => {
@@ -189,7 +191,6 @@ describe('eval', () => {
         expect(functionObj.params.length).toBe(1)
         expect(functionObj.params[0].toString()).toBe('x')
         expect(functionObj.body.toString()).toBe('(x + 2)')
-        console.log(functionObj.inspect())
     })
 
     test('function application', () => {
@@ -235,6 +236,53 @@ addTwo(2)
             if (typeof expected === 'string') {
                 testErrorObject(input, expected)
                 return
+            }
+        })
+    })
+
+    test('hash', () => {
+        const letINput = 'let two = "two";'
+        const hashInput =
+            '{"one": 10 - 9, two: 1 +1, "thr" + "ee": 6 / 2, 4: 4, true: 5, false: 6}'
+        const input = letINput + hashInput
+
+        const { evaluated } = evalTester(input)
+
+        const res = evaluated as Obj
+        const hash = res as Hash
+        expect(hash).toBeInstanceOf(Hash)
+        const pairs = Object.entries(hash.pairs)
+        expect(pairs.length).toBe(6)
+
+        const expected: [string, number][] = [
+            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('one')), 1],
+            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('two')), 2],
+            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('three')), 3],
+            [HashKey.createKey(OBJ_TYPE.INTEGER, Integer.hash(4)), 4],
+            [HashKey.createKey(OBJ_TYPE.BOOL, Bool.hash(true)), 5],
+            [HashKey.createKey(OBJ_TYPE.BOOL, Bool.hash(false)), 6],
+        ]
+
+        pairs.forEach(([key, value], i) => {
+            const int = value as Integer
+            expect(int).toBeInstanceOf(Integer)
+            expect(int.value).toBe(expected[i][1])
+            expect(key).toBe(expected[i][0])
+        })
+    })
+
+    test('hash index', () => {
+        const data: [string, unknown][] = [
+            ['{"foo": 5}["foo"]', 5],
+            ['{"foo": 5}["bar"]', null],
+        ]
+
+        data.forEach(([input, expected]) => {
+            if (typeof expected === 'number') {
+                testIntegerObject(input, expected as number)
+            } else {
+                const { evaluated } = evalTester(input)
+                expect(evaluated).toBeNull()
             }
         })
     })

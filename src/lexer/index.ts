@@ -6,6 +6,8 @@ export const TOKEN_KIND = {
     String: 'STRING',
     Ident: 'IDENT',
 
+    Colon: ':',
+
     // Delimiters
     Semicolon: ';',
     Comma: ',',
@@ -102,6 +104,12 @@ export class Lexer {
             case '}':
                 token = createToken(TOKEN_KIND.RCurly, this.ch)
                 break
+            case '[':
+                token = createToken(TOKEN_KIND.LSquare, this.ch)
+                break
+            case ']':
+                token = createToken(TOKEN_KIND.RSquare, this.ch)
+                break
             case '(':
                 token = createToken(TOKEN_KIND.LParen, this.ch)
                 break
@@ -150,6 +158,9 @@ export class Lexer {
                 break
             case '"':
                 token = createToken(TOKEN_KIND.String, this.readString())
+                break
+            case ':':
+                token = createToken(TOKEN_KIND.Colon, this.ch)
                 break
             case '\0':
                 token = createToken(TOKEN_KIND.Eof, 'eof')

@@ -11,7 +11,4 @@ fn(x, y) { x + y; }
     const parser = new Parser(lexer)
     const program = parser.parseProgram()
     expect(program.toString()).toBe('fn(x, y) { (x + y) }')
-    program.statements.forEach((s) => {
-        console.log(s)
-    })
 })

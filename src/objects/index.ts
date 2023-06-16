@@ -1,4 +1,5 @@
 import { BlockStatement } from '../ast/nodes/block-statement'
+import { HashLiteralKey } from '../ast/nodes/hash-literal'
 import { Identifier } from '../ast/nodes/identifier'
 import { newError } from '../eval'
 
@@ -13,7 +14,13 @@ export const OBJ_TYPE = {
     ENVIRONMENT: 'ENVIRONMENT',
     FUNCTION: 'FUNCTION',
     BUILTIN: 'BUILTIN',
+    ARRAY: 'ARRAY',
+    HASH: 'HASH',
 } as const
+
+export interface Obj {
+    toHashKey?(): HashLiteralKey
+}
 
 export abstract class Obj {
     abstract get type(): ObjType
@@ -32,7 +39,18 @@ export class Bool extends Obj {
     inspect(): string {
         return `${this.value}`
     }
+
+    toHashKey(): HashLiteralKey {
+        const hashedValue = Bool.hash(this.value)
+
+        return HashKey.createKey(this.type, hashedValue)
+    }
+
+    static hash(input: boolean): string {
+        return `${input ? 1 : 0}`
+    }
 }
+
 export const TRUE = new Bool(true)
 export const FALSE = new Bool(false)
 
@@ -48,6 +66,16 @@ export class Integer extends Obj {
     inspect(): string {
         return this.value.toString()
     }
+
+    toHashKey(): HashLiteralKey {
+        const hashedValue = Integer.hash(this.value)
+
+        return HashKey.createKey(this.type, hashedValue)
+    }
+
+    static hash(input: number): string {
+        return input.toString()
+    }
 }
 
 export class String extends Obj {
@@ -61,6 +89,22 @@ export class String extends Obj {
 
     inspect(): string {
         return this.value
+    }
+
+    toHashKey(): HashLiteralKey {
+        const hashedValue = String.hash(this.value)
+
+        return HashKey.createKey(this.type, hashedValue)
+    }
+
+    static hash(input: string): string {
+        let out = 0
+
+        for (const ch of input) {
+            out += ch.charCodeAt(0)
+        }
+
+        return out.toString()
     }
 }
 
@@ -152,6 +196,59 @@ export class FunctionObject extends Obj {
     }
 }
 
+export class Array extends Obj {
+    constructor(public elements: (Obj | null)[]) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.ARRAY
+    }
+
+    inspect(): string {
+        const elements = this.elements.map((el) => el?.inspect()).join(', ')
+        return `[${elements}]`
+    }
+}
+
+export class HashKey {
+    static createKey(type: ObjType, value: string): string {
+        return `${type}_${value}`
+    }
+}
+export type HashPairs = { [Key in HashLiteralKey]: Obj }
+export class Hash extends Obj {
+    constructor(public pairs: HashPairs) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.HASH
+    }
+
+    inspect(): string {
+        const pairs = []
+
+        for (const [key, value] of Object.entries(this.pairs)) {
+            pairs.push(`${key}: ${value.inspect()}`)
+        }
+
+        if (pairs.length > 0) {
+            return `{${pairs.join(', ')}}`
+        }
+
+        return '{}'
+    }
+
+    static isHashable(obj: Obj | null): boolean {
+        if (!obj) return false
+        if (obj instanceof String) return true
+        if (obj instanceof Integer) return true
+        if (obj instanceof Bool) return true
+        return false
+    }
+}
+
 export type BuiltinFunction = (...args: (Obj | null)[]) => Obj
 export class Builtin extends Obj {
     constructor(public fn: BuiltinFunction) {
@@ -175,9 +272,20 @@ export const BUILTINS: { [key: string]: Builtin } = {
         }
 
         const arg = args[0]
+
         if (arg instanceof String) {
             return new Integer(arg.value.length)
         }
+        if (arg instanceof Array) {
+            return new Integer(arg.elements.length)
+        }
+
         return newError(`argument to 'len' not supported, got ${arg?.type}`)
+    }),
+    print: new Builtin((...args) => {
+        args.forEach((arg) => {
+            console.log(arg?.inspect())
+        })
+        return NULL
     }),
 }

@@ -40,6 +40,8 @@ test('test add function', () => {
         10 != 9;
         "foobar"
         "foo bar"
+        [1,2];
+        {"foo": "bar"}
         `
 
     const lexer = new Lexer(input)
@@ -124,6 +126,19 @@ test('test add function', () => {
 
         { kind: TOKEN_KIND.String, literal: 'foobar' },
         { kind: TOKEN_KIND.String, literal: 'foobar' },
+
+        { kind: TOKEN_KIND.LSquare, literal: '[' },
+        { kind: TOKEN_KIND.Int, literal: '1' },
+        { kind: TOKEN_KIND.Comma, literal: ',' },
+        { kind: TOKEN_KIND.Int, literal: '2' },
+        { kind: TOKEN_KIND.RSquare, literal: ']' },
+        { kind: TOKEN_KIND.Semicolon, literal: ';' },
+
+        { kind: TOKEN_KIND.LCurly, literal: '{' },
+        { kind: TOKEN_KIND.String, literal: 'foo' },
+        { kind: TOKEN_KIND.Colon, literal: ':' },
+        { kind: TOKEN_KIND.String, literal: 'bar' },
+        { kind: TOKEN_KIND.RCurly, literal: '}' },
 
         { kind: TOKEN_KIND.Eof, literal: 'eof' },
     ]

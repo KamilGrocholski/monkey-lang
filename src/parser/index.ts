@@ -1,11 +1,14 @@
 import { Expression, Statement } from '../ast'
+import { ArrayLiteral } from '../ast/nodes/array-literal'
 import { BlockStatement } from '../ast/nodes/block-statement'
 import { BooleanLiteral } from '../ast/nodes/boolean-literal'
 import { CallExpression } from '../ast/nodes/call-expression'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { FunctionLiteral } from '../ast/nodes/function-literal'
+import { HashLiteral, HashLiteralPairs } from '../ast/nodes/hash-literal'
 import { Identifier } from '../ast/nodes/identifier'
 import { IfExpression } from '../ast/nodes/if-expression'
+import { IndexExpression } from '../ast/nodes/index-expression'
 import { InfixExpression } from '../ast/nodes/infix-expression'
 import { IntegerLiteral } from '../ast/nodes/integer-literal'
 import { LetStatement } from '../ast/nodes/let-statement'
@@ -62,6 +65,8 @@ export default class Parser {
         this.registerPrefix(TOKEN_KIND.If, this.parseIfExpression)
         this.registerPrefix(TOKEN_KIND.Function, this.parseFunctionLiteral)
         this.registerPrefix(TOKEN_KIND.String, this.parseStringLiteral)
+        this.registerPrefix(TOKEN_KIND.LSquare, this.parseArrayLiteral)
+        this.registerPrefix(TOKEN_KIND.LCurly, this.parseHashLiteral)
 
         this.registerInfix(TOKEN_KIND.Plus, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.Minus, this.parseInfixExpression)
@@ -72,7 +77,7 @@ export default class Parser {
         this.registerInfix(TOKEN_KIND.LessThan, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.GreaterThan, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.LParen, this.parseCallExpression)
-        // this.registerInfix(TOKEN_KIND.RParen, this.parseIndexExpression)
+        this.registerInfix(TOKEN_KIND.LSquare, this.parseIndexExpression)
 
         this.currentToken = this.lexer.getNextToken()
         this.peekToken = this.lexer.getNextToken()
@@ -274,42 +279,9 @@ export default class Parser {
     private parseCallExpression(fn: Expression | null): CallExpression | null {
         const exp = new CallExpression(this.currentToken, fn)
 
-        exp.args = this.parseCallArguments()
+        exp.args = this.parseExpressionList(TOKEN_KIND.RParen)
 
         return exp
-    }
-
-    private parseCallArguments(): Expression[] | null {
-        const args: Expression[] = []
-
-        if (this.peekTokenIs(TOKEN_KIND.RParen)) {
-            this.nextToken()
-            return args
-        }
-
-        this.nextToken()
-        const firstExp = this.parseExpression(Precedence.LOWEST)
-        if (firstExp) {
-            args.push(firstExp)
-        }
-
-        while (this.peekTokenIs(TOKEN_KIND.Comma)) {
-            this.nextToken()
-            this.nextToken()
-
-            const exp = this.parseExpression(Precedence.LOWEST)
-
-            if (exp) {
-                args.push(exp)
-            }
-        }
-
-        if (!this.expectPeek(TOKEN_KIND.RParen)) {
-            return args
-            // return null
-        }
-
-        return args
     }
 
     private parseBlockStatement(): BlockStatement | null {
@@ -380,6 +352,60 @@ export default class Parser {
         return exp
     }
 
+    private parseArrayLiteral(): ArrayLiteral {
+        const elements = this.parseExpressionList(TOKEN_KIND.RSquare)
+        if (elements) {
+            const array = new ArrayLiteral(this.currentToken, elements)
+
+            return array
+        }
+        throw new Error('array elements is null')
+    }
+
+    private parseIndexExpression(left: Expression): IndexExpression | null {
+        const exp = new IndexExpression(this.currentToken, left)
+
+        this.nextToken()
+
+        exp.index = this.parseExpression(Precedence.LOWEST)
+
+        if (!this.expectPeek(TOKEN_KIND.RSquare)) {
+            return null
+        }
+
+        return exp
+    }
+
+    private parseExpressionList(end: TokenKind): Expression[] | null {
+        const list: Expression[] = []
+        if (this.peekTokenIs(end)) {
+            this.nextToken()
+            return list
+        }
+
+        this.nextToken()
+        const exp = this.parseExpression(Precedence.LOWEST)
+        if (exp) {
+            list.push(exp)
+        }
+
+        while (this.peekTokenIs(TOKEN_KIND.Comma)) {
+            this.nextToken()
+            this.nextToken()
+
+            const exp = this.parseExpression(Precedence.LOWEST)
+            if (exp) {
+                list.push(exp)
+            }
+        }
+
+        if (!this.expectPeek(end)) {
+            return null
+        }
+
+        return list
+    }
+
     private parseInfixExpression(leftExp: Expression): InfixExpression {
         const exp = new InfixExpression(
             this.currentToken,
@@ -391,6 +417,43 @@ export default class Parser {
         exp.right = this.parseExpression(precedence)
 
         return exp
+    }
+
+    private parseHashLiteral(): HashLiteral | null {
+        const pairs: HashLiteralPairs = new Map()
+
+        while (!this.peekTokenIs(TOKEN_KIND.RCurly)) {
+            this.nextToken()
+
+            const key = this.parseExpression(Precedence.LOWEST)
+            if (!key) {
+                return null
+            }
+
+            if (!this.expectPeek(TOKEN_KIND.Colon)) {
+                return null
+            }
+
+            this.nextToken()
+            const value = this.parseExpression(Precedence.LOWEST)
+            if (!value) {
+                return null
+            }
+            pairs.set(key, value)
+
+            if (
+                !this.peekTokenIs(TOKEN_KIND.RCurly) &&
+                !this.expectPeek(TOKEN_KIND.Comma)
+            ) {
+                return null
+            }
+        }
+
+        if (!this.expectPeek(TOKEN_KIND.RCurly)) {
+            return null
+        }
+
+        return new HashLiteral(this.currentToken, pairs)
     }
 
     private nextToken(): void {

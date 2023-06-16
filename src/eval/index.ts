@@ -16,6 +16,10 @@ import {
     Environment,
     FunctionObject,
     BUILTINS,
+    Array,
+    Builtin,
+    Hash,
+    HashPairs,
 } from '../objects'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
@@ -29,6 +33,9 @@ import { Identifier } from '../ast/nodes/identifier'
 import { FunctionLiteral } from '../ast/nodes/function-literal'
 import { CallExpression } from '../ast/nodes/call-expression'
 import { StringLiteral } from '../ast/nodes/string-literal'
+import { ArrayLiteral } from '../ast/nodes/array-literal'
+import { IndexExpression } from '../ast/nodes/index-expression'
+import { HashLiteral } from '../ast/nodes/hash-literal'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
@@ -40,6 +47,27 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     }
     if (node instanceof StringLiteral) {
         return new String(node.value)
+    }
+    if (node instanceof HashLiteral) {
+        return evalHashLiteral(node, env)
+    }
+    if (node instanceof ArrayLiteral) {
+        const elements = evalExpressions(node.elements, env)
+        if (elements.length === 1 && isError(elements[0])) {
+            return elements[0]
+        }
+        return new Array(elements)
+    }
+    if (node instanceof IndexExpression) {
+        const left = evaluate(node.left, env)
+        if (isError(left)) {
+            return left
+        }
+        const index = evaluate(node.index, env)
+        if (isError(index)) {
+            return index
+        }
+        return evalIndexExpression(left, index)
     }
     if (node instanceof BooleanLiteral) {
         return boolLookup(node.value)
@@ -272,6 +300,62 @@ function evalIfExpression(exp: IfExpression, env: Environment): Obj | null {
     }
 }
 
+function evalIndexExpression(left: Obj | null, index: Obj | null): Obj | null {
+    if (left instanceof Array) {
+        if (!(index instanceof Integer)) {
+            return newError('some error...')
+        }
+        return evalArrayIndexExpression(left, index)
+    }
+    if (left instanceof Hash) {
+        if (!index?.toHashKey) {
+            return newError(`object type is not hashable: ${index?.type}`)
+        }
+        return evalHashIndexExpression(left, index)
+    }
+    return newError(`index operator not supported: ${left?.type}`)
+}
+
+function evalHashIndexExpression(left: Hash, index: Obj): Obj | null {
+    if (!index.toHashKey) {
+        return newError(`object type is not hashable: ${index.type}`)
+    }
+    const key = index.toHashKey()
+    const pair = left.pairs[key]
+    if (pair) {
+        return pair
+    }
+    return null
+}
+
+function evalArrayIndexExpression(left: Array, index: Integer): Obj | null {
+    const maxIndex = left.elements.length - 1
+    if (index.value < 0 || index.value > maxIndex) {
+        return NULL
+    }
+    return left.elements[index.value]
+}
+
+function evalHashLiteral(node: HashLiteral, env: Environment): Obj | null {
+    const pairs: HashPairs = {}
+    for (const [keyExp, valueExp] of node.pairs.entries()) {
+        const key = evaluate(keyExp, env)
+        if (isError(key)) {
+            return key
+        }
+        if (!key?.toHashKey) {
+            return newError(`object type is not hashable: ${key?.type}`)
+        }
+        const value = evaluate(valueExp, env)
+        if (isError(value)) {
+            return value
+        }
+        pairs[key.toHashKey()] = value as Obj
+    }
+
+    return new Hash(pairs)
+}
+
 function evalIdentifier(node: Identifier, env: Environment): Obj | null {
     const value = env.get(node.value)
     if (value) {
@@ -303,6 +387,9 @@ function applyFunction(fn: Obj | null, args: (Obj | null)[]): Obj | null {
         const evaluated = evaluate(fn.body, extendedEnv)
 
         return unwrapReturnValue(evaluated)
+    }
+    if (fn instanceof Builtin && fn.type === OBJ_TYPE.BUILTIN) {
+        return fn.fn(...args)
     }
 
     return newError(`not a function: ${fn?.type}`)
@@ -337,5 +424,7 @@ export function newError(format: string): ErrorObj {
 }
 
 function isError(obj: Obj | null): boolean {
-    return obj?.type === OBJ_TYPE.ERROR && obj instanceof ErrorObj
+    return obj !== null
+        ? obj?.type === OBJ_TYPE.ERROR && obj instanceof ErrorObj
+        : false
 }
