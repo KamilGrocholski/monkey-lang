@@ -16,6 +16,7 @@ export const OBJ_TYPE = {
     BUILTIN: 'BUILTIN',
     ARRAY: 'ARRAY',
     HASH: 'HASH',
+    FOR: 'FOR',
 } as const
 
 export interface Obj {
@@ -43,7 +44,7 @@ export class Bool extends Obj {
     toHashKey(): HashLiteralKey {
         const hashedValue = Bool.hash(this.value)
 
-        return HashKey.createKey(this.type, hashedValue)
+        return HashKey.createKey(hashedValue)
     }
 
     static hash(input: boolean): string {
@@ -70,7 +71,7 @@ export class Integer extends Obj {
     toHashKey(): HashLiteralKey {
         const hashedValue = Integer.hash(this.value)
 
-        return HashKey.createKey(this.type, hashedValue)
+        return HashKey.createKey(hashedValue)
     }
 
     static hash(input: number): string {
@@ -94,17 +95,11 @@ export class String extends Obj {
     toHashKey(): HashLiteralKey {
         const hashedValue = String.hash(this.value)
 
-        return HashKey.createKey(this.type, hashedValue)
+        return HashKey.createKey(hashedValue)
     }
 
     static hash(input: string): string {
-        let out = 0
-
-        for (const ch of input) {
-            out += ch.charCodeAt(0)
-        }
-
-        return out.toString()
+        return input
     }
 }
 
@@ -211,9 +206,29 @@ export class Array extends Obj {
     }
 }
 
+export class For extends Obj {
+    constructor(
+        public index: Identifier,
+        public value: Identifier,
+        public target: Identifier,
+        public body: BlockStatement,
+        public env: Environment
+    ) {
+        super()
+    }
+
+    get type(): ObjType {
+        return OBJ_TYPE.FOR
+    }
+
+    inspect(): string {
+        return `for ${this.index.toString()}, ${this.value.toString()} in ${this.target.toString()} { \n ${this.body.toString()}\n}`
+    }
+}
+
 export class HashKey {
-    static createKey(type: ObjType, value: string): string {
-        return `${type}_${value}`
+    static createKey(value: string): string {
+        return value
     }
 }
 export type HashPairs = { [Key in HashLiteralKey]: Obj }
@@ -281,6 +296,71 @@ export const BUILTINS: { [key: string]: Builtin } = {
         }
 
         return newError(`argument to 'len' not supported, got ${arg?.type}`)
+    }),
+    append: new Builtin((...args) => {
+        if (args.length !== 2) {
+            return newError(
+                `wrong number of arguments: got=${args.length}, expected=2`
+            )
+        }
+        const array = args[0]
+        const element = args[1]
+        if (!array) {
+            return newError(`array is null`)
+        }
+        if (!(array instanceof Array)) {
+            return newError(
+                `first arguments is not type of Array, got ${array?.type}`
+            )
+        }
+        if (!(element instanceof Obj)) {
+            return newError(`elements is not Obj`)
+        }
+
+        array.elements.push(element)
+
+        return array
+    }),
+    remove: new Builtin((...args) => {
+        if (args.length !== 2) {
+            return newError(
+                `wrong number of arguments: got=${args.length}, expected=2`
+            )
+        }
+        const array = args[0]
+        const index = args[1]
+        if (!array) {
+            return newError(`array is null`)
+        }
+        if (!(array instanceof Array)) {
+            return newError(
+                `first arguments is not type of Array, got ${array?.type}`
+            )
+        }
+        if (!(index instanceof Integer)) {
+            return newError(`index is not Integer`)
+        }
+
+        const newElements = array.elements.filter((_, i) => i !== index.value)
+
+        if (newElements.length === array.elements.length - 1) {
+            array.elements = newElements
+            return TRUE
+        }
+
+        return FALSE
+    }),
+    typeof: new Builtin((...args) => {
+        if (args.length !== 1) {
+            return newError(
+                `wrong number of arguments: got=${args.length}, expected=1`
+            )
+        }
+
+        const target = args[0]
+        if (!target) return newError('')
+
+        return new String(target.type)
     }),
     print: new Builtin((...args) => {
         args.forEach((arg) => {

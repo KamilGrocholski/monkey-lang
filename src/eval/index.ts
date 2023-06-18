@@ -20,6 +20,7 @@ import {
     Builtin,
     Hash,
     HashPairs,
+    For,
 } from '../objects'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
@@ -36,6 +37,7 @@ import { StringLiteral } from '../ast/nodes/string-literal'
 import { ArrayLiteral } from '../ast/nodes/array-literal'
 import { IndexExpression } from '../ast/nodes/index-expression'
 import { HashLiteral } from '../ast/nodes/hash-literal'
+import { ForExpression } from '../ast/nodes/for-expression'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
@@ -47,6 +49,16 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     }
     if (node instanceof StringLiteral) {
         return new String(node.value)
+    }
+    if (node instanceof ForExpression) {
+        const forObj = new For(
+            node.index,
+            node.value,
+            node.target,
+            node.body,
+            env
+        )
+        return applyFor(forObj)
     }
     if (node instanceof HashLiteral) {
         return evalHashLiteral(node, env)
@@ -216,6 +228,9 @@ function evalInfixExpression(
     if (left instanceof String && right instanceof String) {
         return evalStringInfixExpression(operator, left, right)
     }
+    if (left instanceof Bool && right instanceof Bool) {
+        return evalBoolInfixExpression(operator, left, right)
+    }
     return newError(
         `unknown operator: ${left?.type} ${operator} ${right?.type}`
     )
@@ -269,6 +284,26 @@ function evalStringInfixExpression(
     }
     if (operator === TOKEN_KIND.Plus) {
         return new String(left.value + right.value)
+    }
+    if (operator === TOKEN_KIND.Equal) {
+        return boolLookup(left.value === right.value)
+    }
+
+    return newError(`unknown operator: ${left.type} ${operator} ${right.type}`)
+}
+
+function evalBoolInfixExpression(
+    operator: string,
+    left: Bool | null,
+    right: Bool | null
+): Obj {
+    if (!left || !right) {
+        return newError(
+            `lack of arguments: ${left?.type} ${operator} ${right?.type}`
+        )
+    }
+    if (operator === TOKEN_KIND.Equal) {
+        return boolLookup(left.value === right.value)
     }
 
     return newError(`unknown operator: ${left.type} ${operator} ${right.type}`)
@@ -395,8 +430,39 @@ function applyFunction(fn: Obj | null, args: (Obj | null)[]): Obj | null {
     return newError(`not a function: ${fn?.type}`)
 }
 
+function applyFor(forObj: Obj | null): Obj | null {
+    if (forObj instanceof For && forObj.type === OBJ_TYPE.FOR) {
+        const targetName = forObj.target
+        const target = forObj.env.get(targetName.value)
+
+        if (target instanceof Array) {
+            const closureEnv = new Environment(forObj.env)
+            target.elements.forEach((e, i) => {
+                closureEnv.set(forObj.index.value, new Integer(i))
+                closureEnv.set(forObj.value.value, e)
+                evaluate(forObj.body, closureEnv)
+            })
+            return forObj
+        }
+        if (target instanceof Hash) {
+            const closureEnv = new Environment(forObj.env)
+            const pairsArr = Object.entries(target.pairs)
+            pairsArr.forEach(([key, val]) => {
+                closureEnv.set(forObj.index.value, new String(key))
+                closureEnv.set(forObj.value.value, val)
+                evaluate(forObj.body, closureEnv)
+            })
+            return forObj
+        }
+
+        return newError(`For object not supported, got ${forObj.inspect()}`)
+    }
+
+    return newError(`not a for: ${forObj?.type}`)
+}
+
 /**
-    closure env + main env
+    closure env + main env : fn
 */
 function extendedFunctionEnv(
     fn: FunctionObject,

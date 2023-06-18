@@ -26,7 +26,7 @@ rl.on('line', (input) => {
     }
 
     const evaluated = evaluate(program, env)
-    console.log(evaluated?.inspect())
+    // console.log(evaluated?.inspect())
 
     rl.prompt()
 })
