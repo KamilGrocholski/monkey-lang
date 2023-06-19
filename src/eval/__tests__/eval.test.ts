@@ -174,7 +174,10 @@ describe('eval', () => {
 
     test('let', () => {
         const data: [string, string][] = [
-            ['foobar', 'identifier not found: foobar'],
+            [
+                'foobar',
+                ErrorObj.createIdentifierNotFoundError('foobar').message,
+            ],
         ]
 
         data.forEach(([input, expected]) => {
@@ -254,20 +257,19 @@ addTwo(2)
         const pairs = Object.entries(hash.pairs)
         expect(pairs.length).toBe(6)
 
-        const expected: [string, number][] = [
-            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('one')), 1],
-            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('two')), 2],
-            [HashKey.createKey(OBJ_TYPE.STRING, String.hash('three')), 3],
-            [HashKey.createKey(OBJ_TYPE.INTEGER, Integer.hash(4)), 4],
-            [HashKey.createKey(OBJ_TYPE.BOOL, Bool.hash(true)), 5],
-            [HashKey.createKey(OBJ_TYPE.BOOL, Bool.hash(false)), 6],
-        ]
+        const expected: { [key: string]: number } = {
+            [HashKey.createKey(String.hash('one'))]: 1,
+            [HashKey.createKey(String.hash('two'))]: 2,
+            [HashKey.createKey(String.hash('three'))]: 3,
+            [HashKey.createKey(Integer.hash(4))]: 4,
+            [HashKey.createKey(Bool.hash(true))]: 5,
+            [HashKey.createKey(Bool.hash(false))]: 6,
+        }
 
         pairs.forEach(([key, value], i) => {
             const int = value as Integer
             expect(int).toBeInstanceOf(Integer)
-            expect(int.value).toBe(expected[i][1])
-            expect(key).toBe(expected[i][0])
+            expect(int.value).toBe(expected[key])
         })
     })
 
@@ -284,6 +286,20 @@ addTwo(2)
                 const { evaluated } = evalTester(input)
                 expect(evaluated).toBeNull()
             }
+        })
+    })
+
+    test('for loop', () => {
+        const data: [string, string][] = [
+            [
+                'let arr = [1, 2]; for _, number in arr {print(number);}',
+                `for _, number in arr { \n print(number)\n}`,
+            ],
+        ]
+
+        data.forEach(([input, expected]) => {
+            const { evaluated } = evalTester(input)
+            expect(evaluated?.inspect()).toBe(expected)
         })
     })
 })

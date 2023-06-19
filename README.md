@@ -27,13 +27,23 @@ npm run repl
 > monkey-lang@1.0.0 repl
 > ts-node src/repl/index.ts
 
->>let users = [{"name": "Alice", "age": 20}, {"name": "Anna", "age": 28}]
-[{STRING_417: Alice, STRING_301: 20}, {STRING_417: Anna, STRING_301: 28}]
->>users[1]
-{STRING_417: Anna, STRING_301: 28}
->>users[100]
-null
->>users[0]["name"]
-Alice
+>>let ROLES = {"ADMIN": 0, "BASIC": 1}
+>>let users = []
+>>append(users, {"name": "Annie", "role": ROLES["ADMIN"]})
+>>append(users, {"name": "Erwin", "role": ROLES["ADMIN"]})
+>>append(users, {"name": "John", "role": ROLES["BASIC"]})
+>>print(users)
+[{name: Annie, role: 0}, {name: Erwin, role: 0}, {name: John, role: 1}]
+>>let isAdmin = fn(user) {user["role"] == ROLES["ADMIN"];}
+>>let firstUser = users[0]
+>>print(firstUser)
+{name: Annie, role: 0}
+>>
+>>print(isAdmin(firstUser))
+true
+>>for _, user in users {print(isAdmin(user))}
+true
+true
+false
 >>
 ```

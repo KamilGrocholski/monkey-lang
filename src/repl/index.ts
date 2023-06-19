@@ -3,7 +3,7 @@ import readline from 'readline'
 import { Lexer } from '../lexer'
 import Parser from '../parser'
 import { evaluate } from '../eval'
-import { Environment } from '../objects'
+import { Environment, ErrorObj } from '../objects'
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -26,7 +26,10 @@ rl.on('line', (input) => {
     }
 
     const evaluated = evaluate(program, env)
-    console.log(evaluated?.inspect())
+    if (evaluated instanceof ErrorObj) {
+        console.error(evaluated.message)
+    }
+    // console.log(evaluated?.inspect())
 
     rl.prompt()
 })

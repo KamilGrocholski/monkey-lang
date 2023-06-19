@@ -4,6 +4,7 @@ import { BlockStatement } from '../ast/nodes/block-statement'
 import { BooleanLiteral } from '../ast/nodes/boolean-literal'
 import { CallExpression } from '../ast/nodes/call-expression'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
+import { ForExpression } from '../ast/nodes/for-expression'
 import { FunctionLiteral } from '../ast/nodes/function-literal'
 import { HashLiteral, HashLiteralPairs } from '../ast/nodes/hash-literal'
 import { Identifier } from '../ast/nodes/identifier'
@@ -67,6 +68,7 @@ export default class Parser {
         this.registerPrefix(TOKEN_KIND.String, this.parseStringLiteral)
         this.registerPrefix(TOKEN_KIND.LSquare, this.parseArrayLiteral)
         this.registerPrefix(TOKEN_KIND.LCurly, this.parseHashLiteral)
+        this.registerPrefix(TOKEN_KIND.For, this.parseForExpression)
 
         this.registerInfix(TOKEN_KIND.Plus, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.Minus, this.parseInfixExpression)
@@ -162,7 +164,7 @@ export default class Parser {
         return new StringLiteral(this.currentToken, this.currentToken.literal)
     }
 
-    private parseBoolean(): Expression {
+    private parseBoolean(): BooleanLiteral {
         return new BooleanLiteral(
             this.currentToken,
             this.currentTokenIs(TOKEN_KIND.True)
@@ -454,6 +456,51 @@ export default class Parser {
         }
 
         return new HashLiteral(this.currentToken, pairs)
+    }
+
+    private parseForExpression(): ForExpression | null {
+        if (!this.expectPeek(TOKEN_KIND.Ident)) {
+            return null
+        }
+
+        const index = this.parseIdentifier()
+        if (!index) {
+            return null
+        }
+
+        if (!this.expectPeek(TOKEN_KIND.Comma)) {
+            return null
+        }
+        if (!this.expectPeek(TOKEN_KIND.Ident)) {
+            return null
+        }
+
+        const value = this.parseIdentifier()
+        if (!value) {
+            return null
+        }
+
+        if (!this.expectPeek(TOKEN_KIND.In)) {
+            return null
+        }
+
+        if (!this.expectPeek(TOKEN_KIND.Ident)) {
+            return null
+        }
+        const target = this.parseIdentifier()
+        if (!target) {
+            return null
+        }
+
+        if (!this.expectPeek(TOKEN_KIND.LCurly)) {
+            return null
+        }
+        const body = this.parseBlockStatement()
+        if (!body) {
+            return null
+        }
+
+        return new ForExpression(this.currentToken, index, value, target, body)
     }
 
     private nextToken(): void {
