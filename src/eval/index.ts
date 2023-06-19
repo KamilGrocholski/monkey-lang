@@ -219,9 +219,6 @@ function evalInfixExpression(
     right: Obj | null,
     env: Environment
 ): Obj {
-    if (left instanceof Identifier) {
-        return evalIdentInfixExpression(operator, left, right, env)
-    }
     if (left instanceof Null) {
         return evalNullInfixExpression(operator, right)
     }
@@ -243,31 +240,7 @@ function evalInfixExpression(
     if (left instanceof Array && right instanceof Array) {
         return evalArrayInfixExpression(operator, left, right)
     }
-    return ErrorObj.createInfixError({
-        operator: ErrorObj.createUnknownToken(operator),
-    })
-}
-
-function evalIdentInfixExpression(
-    operator: string,
-    left: Identifier,
-    right: Obj | null,
-    env: Environment
-): Obj {
-    switch (operator) {
-        case TOKEN_KIND.Assign:
-            const objFromEnv = env.get(left.value)
-            if (!objFromEnv) {
-                return ErrorObj.createIdentifierNotFoundError(left.value)
-            }
-            const assigned = env.set(left.value, right)
-            if (!assigned) {
-                return newError('')
-            }
-            return assigned
-        default:
-            return newError(`operator not supported: ${operator}`)
-    }
+    return newError(`type mismatch: ${left?.type} ${operator} ${right?.type}`)
 }
 
 function evalNullInfixExpression(operator: string, right: Obj | null): Obj {
