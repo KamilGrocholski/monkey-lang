@@ -28,7 +28,8 @@ export const TOKEN_KIND = {
     True: 'true',
     False: 'false',
     For: 'for',
-    In: 'In',
+    In: 'in',
+    Null: 'null',
 
     Assign: '=',
     Equal: '==',
@@ -86,6 +87,7 @@ export const KEYWORDS = {
     else: createToken(TOKEN_KIND.Else, 'else'),
     for: createToken(TOKEN_KIND.For, 'for'),
     in: createToken(TOKEN_KIND.In, 'in'),
+    null: createToken(TOKEN_KIND.Null, 'null'),
 } as const
 
 export class Lexer {

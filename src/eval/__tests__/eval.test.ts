@@ -174,7 +174,10 @@ describe('eval', () => {
 
     test('let', () => {
         const data: [string, string][] = [
-            ['foobar', 'identifier not found: foobar'],
+            [
+                'foobar',
+                ErrorObj.createIdentifierNotFoundError('foobar').message,
+            ],
         ]
 
         data.forEach(([input, expected]) => {

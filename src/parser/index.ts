@@ -164,7 +164,7 @@ export default class Parser {
         return new StringLiteral(this.currentToken, this.currentToken.literal)
     }
 
-    private parseBoolean(): Expression {
+    private parseBoolean(): BooleanLiteral {
         return new BooleanLiteral(
             this.currentToken,
             this.currentTokenIs(TOKEN_KIND.True)

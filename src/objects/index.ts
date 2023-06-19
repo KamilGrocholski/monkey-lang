@@ -1,10 +1,11 @@
 import { BlockStatement } from '../ast/nodes/block-statement'
 import { HashLiteralKey } from '../ast/nodes/hash-literal'
 import { Identifier } from '../ast/nodes/identifier'
-import { newError } from '../eval'
 
 export type ObjType = (typeof OBJ_TYPE)[keyof typeof OBJ_TYPE]
 export const OBJ_TYPE = {
+    ANY: 'ANY',
+
     INTEGER: 'INTEGER',
     BOOL: 'BOOL',
     NULL: 'NULL',
@@ -144,6 +145,62 @@ export class ErrorObj extends Obj {
     inspect(): string {
         return `ERROR: ${this.message}`
     }
+
+    static createObjectRequiredError(actionName: string, name: string) {
+        return new ErrorObj(
+            `ObjectRequiredError: object '${name}' must not be 'null' for '${actionName}'`
+        )
+    }
+    static createIdentifierNotFoundError(name: string) {
+        return new ErrorObj(
+            `IdentifierNotFoundError: ident named '${name}' is not found`
+        )
+    }
+    static createTypeMismatchError(data: {
+        expected: { left: ObjType; right: ObjType }
+        got: { left?: null | ObjType; right?: null | ObjType }
+    }) {
+        return new ErrorObj(
+            `TypeMismatchError: \texpected '${data.expected.left}' and '${data.expected.right}', \tgot '${data.got.left}' and '${data.got.right}'`
+        )
+    }
+    static createTypeError(expected: ObjType, got?: ObjType | null) {
+        return new ErrorObj(`TypeError: expected '${expected}', got '${got}'`)
+    }
+    static createArgsLengthError(expected: number, got: number) {
+        return new ErrorObj(
+            `ArgsLengthError: expected '${expected}', got '${got}'`
+        )
+    }
+    static createTypeNotSupportedError(
+        actionName: string,
+        got?: ObjType | null
+    ) {
+        return new ErrorObj(
+            `TypeNotSupportedError: type '${got}' is not supported for '${actionName}'`
+        )
+    }
+    static createUnknownToken(token: string) {
+        return new ErrorObj(`UnknownTokenError: unknown token '${token}'`)
+    }
+    static createInfixError(data: {
+        left?: ErrorObj
+        operator?: ErrorObj
+        right?: ErrorObj
+    }) {
+        let error = ''
+        if (data.left) {
+            error += data.left.message + '\n'
+        }
+        if (data.operator) {
+            error += data.operator.message + '\n'
+        }
+        if (data.right) {
+            error += data.right.message + '\n'
+        }
+
+        return new ErrorObj(`InfixError: error`)
+    }
 }
 
 export class Environment {
@@ -281,9 +338,7 @@ export class Builtin extends Obj {
 export const BUILTINS: { [key: string]: Builtin } = {
     len: new Builtin((...args) => {
         if (args.length !== 1) {
-            return newError(
-                `wrong number of arguments: got=${args.length}, expected=1`
-            )
+            return ErrorObj.createArgsLengthError(1, args.length)
         }
 
         const arg = args[0]
@@ -295,70 +350,118 @@ export const BUILTINS: { [key: string]: Builtin } = {
             return new Integer(arg.elements.length)
         }
 
-        return newError(`argument to 'len' not supported, got ${arg?.type}`)
+        return ErrorObj.createTypeNotSupportedError('len', arg?.type)
     }),
     append: new Builtin((...args) => {
-        if (args.length !== 2) {
-            return newError(
-                `wrong number of arguments: got=${args.length}, expected=2`
-            )
-        }
-        const array = args[0]
-        const element = args[1]
-        if (!array) {
-            return newError(`array is null`)
-        }
-        if (!(array instanceof Array)) {
-            return newError(
-                `first arguments is not type of Array, got ${array?.type}`
-            )
-        }
-        if (!(element instanceof Obj)) {
-            return newError(`elements is not Obj`)
+        const target = args[0]
+        if (!target) {
+            return ErrorObj.createObjectRequiredError('append', 'target')
         }
 
-        array.elements.push(element)
+        if (target instanceof Array) {
+            if (args.length !== 2) {
+                return ErrorObj.createArgsLengthError(2, args.length)
+            }
+            const element = args[1]
+            if (!element) {
+                return ErrorObj.createObjectRequiredError(
+                    'array append',
+                    'element'
+                )
+            }
+            if (element instanceof Obj) {
+                target.elements.push(element)
 
-        return array
+                return target
+            }
+
+            return ErrorObj.createTypeError(OBJ_TYPE.ANY, undefined)
+        }
+
+        if (target instanceof Hash) {
+            if (args.length !== 3) {
+                return ErrorObj.createArgsLengthError(3, args.length)
+            }
+            const key = args[1]
+            if (!key) {
+                return ErrorObj.createObjectRequiredError('hash append', 'key')
+            }
+            if (!key.toHashKey) {
+                return ErrorObj.createTypeNotSupportedError(
+                    'hash append',
+                    key.type
+                )
+            }
+            const value = args[2]
+            if (!value) {
+                return ErrorObj.createObjectRequiredError(
+                    'hash append',
+                    'value'
+                )
+            }
+            target.pairs[key.toHashKey()] = value
+
+            return target
+        }
+
+        return ErrorObj.createTypeNotSupportedError('append', target.type)
     }),
     remove: new Builtin((...args) => {
         if (args.length !== 2) {
-            return newError(
-                `wrong number of arguments: got=${args.length}, expected=2`
-            )
-        }
-        const array = args[0]
-        const index = args[1]
-        if (!array) {
-            return newError(`array is null`)
-        }
-        if (!(array instanceof Array)) {
-            return newError(
-                `first arguments is not type of Array, got ${array?.type}`
-            )
-        }
-        if (!(index instanceof Integer)) {
-            return newError(`index is not Integer`)
-        }
-
-        const newElements = array.elements.filter((_, i) => i !== index.value)
-
-        if (newElements.length === array.elements.length - 1) {
-            array.elements = newElements
-            return TRUE
-        }
-
-        return FALSE
-    }),
-    typeof: new Builtin((...args) => {
-        if (args.length !== 1) {
-            return newError(
-                `wrong number of arguments: got=${args.length}, expected=1`
-            )
+            return ErrorObj.createArgsLengthError(2, args.length)
         }
 
         const target = args[0]
-        if (!target) return newError('')
+
+        if (target instanceof Array) {
+            const index = args[1]
+            if (!index) {
+                return ErrorObj.createObjectRequiredError(
+                    'Array Remove',
+                    'index'
+                )
+            }
+            if (!(index instanceof Integer)) {
+                return ErrorObj.createTypeError(OBJ_TYPE.INTEGER, index?.type)
+            }
+
+            const newElements = target.elements.filter(
+                (_, i) => i !== index.value
+            )
+
+            if (newElements.length === target.elements.length - 1) {
+                target.elements = newElements
+                return TRUE
+            }
+            return FALSE
+        }
+
+        if (target instanceof Hash) {
+            const key = args[1]
+            if (!key) {
+                return ErrorObj.createObjectRequiredError('Hash Remove', 'key')
+            }
+            if (!(key instanceof String)) {
+                return ErrorObj.createTypeError(OBJ_TYPE.STRING, key.type)
+            }
+            const value = target.pairs[key.value]
+
+            if (!value) return TRUE
+            delete target.pairs[key.value]
+            return FALSE
+        }
+
+        return ErrorObj.createTypeNotSupportedError('REMOVE', target?.type)
+    }),
+    typeof: new Builtin((...args) => {
+        if (args.length !== 1) {
+            return ErrorObj.createArgsLengthError(1, args.length)
+        }
+
+        const target = args[0]
+        if (!target) {
+            return ErrorObj.createObjectRequiredError('typeof', 'target')
+        }
 
         return new String(target.type)
     }),
