@@ -7,6 +7,7 @@ export const TOKEN_KIND = {
     Ident: 'IDENT',
 
     Colon: ':',
+    Dot: '.',
 
     // Delimiters
     Semicolon: ';',
@@ -20,8 +21,9 @@ export const TOKEN_KIND = {
     RSquare: ']',
 
     // Keywords
+    Const: 'const',
     Let: 'let',
-    Function: 'FUNCTION',
+    Function: 'function',
     If: 'if',
     Else: 'else',
     Return: 'return',
@@ -80,6 +82,7 @@ function createToken(type: TokenKind, literal: string): Token {
 export const KEYWORDS = {
     fn: createToken(TOKEN_KIND.Function, 'fn'),
     let: createToken(TOKEN_KIND.Let, 'let'),
+    const: createToken(TOKEN_KIND.Const, 'const'),
     return: createToken(TOKEN_KIND.Return, 'return'),
     true: createToken(TOKEN_KIND.True, 'true'),
     false: createToken(TOKEN_KIND.False, 'false'),

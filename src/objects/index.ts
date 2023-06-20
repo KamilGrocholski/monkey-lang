@@ -4,8 +4,6 @@ import { Identifier } from '../ast/nodes/identifier'
 
 export type ObjType = (typeof OBJ_TYPE)[keyof typeof OBJ_TYPE]
 export const OBJ_TYPE = {
-    ANY: 'ANY',
-
     INTEGER: 'INTEGER',
     BOOL: 'BOOL',
     NULL: 'NULL',
@@ -146,6 +144,16 @@ export class ErrorObj extends Obj {
         return `ERROR: ${this.message}`
     }
 
+    static createAlreadyAssignedError(name: string) {
+        return new ErrorObj(
+            `AlreadyAssignedError: '${name}' is already assigned`
+        )
+    }
+    static createConstantReassignError(name: string) {
+        return new ErrorObj(
+            `ConstantReassignError: trying to reassign constant '${name}'`
+        )
+    }
     static createObjectRequiredError(actionName: string, name: string) {
         return new ErrorObj(
             `ObjectRequiredError: object '${name}' must not be 'null' for '${actionName}'`
@@ -164,7 +172,7 @@ export class ErrorObj extends Obj {
             `TypeMismatchError: \texpected '${data.expected.left}' and '${data.expected.right}', \tgot '${data.got.left}' and '${data.got.right}'`
         )
     }
-    static createTypeError(expected: ObjType, got?: ObjType | null) {
+    static createTypeError(expected: ObjType | 'any', got?: ObjType | null) {
         return new ErrorObj(`TypeError: expected '${expected}', got '${got}'`)
     }
     static createArgsLengthError(expected: number, got: number) {
@@ -180,8 +188,17 @@ export class ErrorObj extends Obj {
             `TypeNotSupportedError: type '${got}' is not supported for '${actionName}'`
         )
     }
-    static createUnknownToken(token: string) {
+    static createUnknownTokenError(token: string) {
         return new ErrorObj(`UnknownTokenError: unknown token '${token}'`)
+    }
+    static createOperatorNotSupportedError(
+        operator: string,
+        left?: string | null,
+        right?: string | null
+    ) {
+        return new ErrorObj(
+            `OperatorNotSupportedError: ${left} ${operator} ${right}`
+        )
     }
     static createInfixError(data: {
         left?: ErrorObj
@@ -199,12 +216,13 @@ export class ErrorObj extends Obj {
             error += data.right.message + '\n'
         }
 
-        return new ErrorObj(`InfixError: error`)
+        return new ErrorObj(`InfixError: ${error}`)
     }
 }
 
 export class Environment {
     store: Map<string, Obj> = new Map()
+    constCheck: Set<string> = new Set()
     outer?: Environment
 
     constructor(outer?: Environment) {
@@ -220,8 +238,36 @@ export class Environment {
         return null
     }
 
-    set(key: string, obj: Obj | null): Obj | null {
+    reassign(key: string, obj: Obj | null): Obj | null {
         if (obj) {
+            if (this.constCheck.has(key)) {
+                return ErrorObj.createConstantReassignError(key)
+            }
+            const varObj = this.get(key)
+            if (!varObj) {
+                return ErrorObj.createIdentifierNotFoundError(key)
+            }
+            this.store.set(key, obj)
+        }
+        return obj
+    }
+
+    setMutable(key: string, obj: Obj | null): Obj | null {
+        if (obj) {
+            if (this.get(key)) {
+                return ErrorObj.createAlreadyAssignedError(key)
+            }
+            this.store.set(key, obj)
+        }
+        return obj
+    }
+
+    setImmutable(key: string, obj: Obj | null): Obj | null {
+        if (obj) {
+            if (this.constCheck.has(key)) {
+                return ErrorObj.createConstantReassignError(key)
+            }
+            this.constCheck.add(key)
             this.store.set(key, obj)
         }
         return obj
@@ -375,7 +421,7 @@ export const BUILTINS: { [key: string]: Builtin } = {
                 return target
             }
 
-            return ErrorObj.createTypeError(OBJ_TYPE.ANY, undefined)
+            return ErrorObj.createTypeError('any', undefined)
         }
 
         if (target instanceof Hash) {
@@ -469,6 +515,24 @@ export const BUILTINS: { [key: string]: Builtin } = {
         args.forEach((arg) => {
             console.log(arg?.inspect())
         })
+        return NULL
+    }),
+    string: new Builtin((...args) => {
+        let out = ''
+        args.forEach((arg) => {
+            out += arg?.inspect()
+        })
+        return new String(out)
+    }),
+    int: new Builtin((...args) => {
+        if (args.length !== 1) {
+            return ErrorObj.createArgsLengthError(1, args.length)
+        }
+        const arg = args[0]
+        if (arg instanceof String) {
+            const number = parseInt(arg.value, 10)
+            return new Integer(number)
+        }
         return NULL
     }),
 }

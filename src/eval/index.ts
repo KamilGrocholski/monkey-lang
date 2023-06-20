@@ -39,6 +39,9 @@ import { ArrayLiteral } from '../ast/nodes/array-literal'
 import { IndexExpression } from '../ast/nodes/index-expression'
 import { HashLiteral } from '../ast/nodes/hash-literal'
 import { ForExpression } from '../ast/nodes/for-expression'
+import { AssignExpression } from '../ast/nodes/assign-statement'
+import { ConstStatement } from '../ast/nodes/const-statement'
+import { NullLiteral } from '../ast/nodes/null-literal'
 
 function boolLookup(bool: boolean): Bool {
     return bool ? TRUE : FALSE
@@ -51,6 +54,9 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     if (node instanceof StringLiteral) {
         return new String(node.value)
     }
+    if (node instanceof NullLiteral) {
+        return NULL
+    }
     if (node instanceof ForExpression) {
         const forObj = new For(
             node.index,
@@ -60,6 +66,9 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
             env
         )
         return applyFor(forObj)
+    }
+    if (node instanceof AssignExpression) {
+        return evalAssignExpression(node, env)
     }
     if (node instanceof HashLiteral) {
         return evalHashLiteral(node, env)
@@ -130,7 +139,17 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
             return value
         }
         if (node.name?.value) {
-            env.set(node.name.value, value)
+            return env.setMutable(node.name.value, value)
+        }
+        return value
+    }
+    if (node instanceof ConstStatement) {
+        const value = evaluate(node.value, env)
+        if (isError(value)) {
+            return value
+        }
+        if (node.name?.value) {
+            return env.setImmutable(node.name.value, value)
         }
         return value
     }
@@ -163,6 +182,22 @@ export function evaluate(node: AstNode | null, env: Environment): Obj | null {
     return null
 }
 
+function evalAssignExpression(
+    node: AssignExpression,
+    env: Environment
+): Obj | null {
+    switch (node.operator) {
+        case TOKEN_KIND.Assign:
+            const value = evaluate(node.value, env)
+            if (isError(value)) {
+                return value
+            }
+            return env.reassign(node.name.value, value)
+        default:
+            return ErrorObj.createOperatorNotSupportedError(node.operator)
+    }
+}
+
 function evalPrefixExpression(operator: string, right: Obj | null): Obj | null {
     switch (operator) {
         case '!':
@@ -170,7 +205,11 @@ function evalPrefixExpression(operator: string, right: Obj | null): Obj | null {
         case '-':
             return evalMinusPrefixOperatorExpression(right)
         default:
-            return newError(`unknown operator: ${operator}${right?.type}`)
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                undefined,
+                right?.type
+            )
     }
 }
 
@@ -206,7 +245,10 @@ function evalBangOperatorExpression(right: Obj | null): Obj {
 
 function evalMinusPrefixOperatorExpression(right: Obj | null): Obj {
     if (right?.type !== OBJ_TYPE.INTEGER) {
-        return newError(`unknown operator: -${right?.type}`)
+        return ErrorObj.createTypeNotSupportedError(
+            'evalMinusPrefixOperatorExpression',
+            right?.type
+        )
     }
 
     const value = (right as unknown as IntegerLiteral).value
@@ -250,7 +292,11 @@ function evalNullInfixExpression(operator: string, right: Obj | null): Obj {
         case TOKEN_KIND.NotEqual:
             return boolLookup(right?.type !== OBJ_TYPE.NULL)
         default:
-            return newError(`operator not supported: ${operator}`)
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                undefined,
+                right?.type
+            )
     }
 }
 
@@ -265,7 +311,11 @@ function evalHashInfixExpression(
         case TOKEN_KIND.NotEqual:
             return boolLookup(left.pairs !== right.pairs)
         default:
-            return newError(`operator not supported: ${operator}`)
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                left.type,
+                right.type
+            )
     }
 }
 
@@ -280,7 +330,11 @@ function evalArrayInfixExpression(
         case TOKEN_KIND.NotEqual:
             return boolLookup(left.elements !== right.elements)
         default:
-            return newError(`operator not supported: ${operator}`)
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                left.type,
+                right.type
+            )
     }
 }
 
@@ -314,8 +368,10 @@ function evalIntegerInfixExpression(
         case TOKEN_KIND.NotEqual:
             return boolLookup(leftValue !== rightValue)
         default:
-            return newError(
-                `unknown operator: ${left.type} ${operator} ${right.type}`
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                left.type,
+                right.type
             )
     }
 }
@@ -338,8 +394,10 @@ function evalStringInfixExpression(
         case TOKEN_KIND.NotEqual:
             return boolLookup(left.value !== right.value)
         default:
-            return newError(
-                `unknown operator: ${left.type} ${operator} ${right.type}`
+            return ErrorObj.createOperatorNotSupportedError(
+                operator,
+                left.type,
+                right.type
             )
     }
 }
@@ -358,7 +416,11 @@ function evalBoolInfixExpression(
         return boolLookup(left.value === right.value)
     }
 
-    return newError(`unknown operator: ${left.type} ${operator} ${right.type}`)
+    return ErrorObj.createOperatorNotSupportedError(
+        operator,
+        left.type,
+        right.type
+    )
 }
 
 function isTruthy(obj: Obj | null): boolean {
@@ -499,8 +561,8 @@ function applyFor(forObj: Obj | null): Obj | null {
         if (target instanceof Array) {
             const closureEnv = new Environment(forObj.env)
             target.elements.forEach((e, i) => {
-                closureEnv.set(forObj.index.value, new Integer(i))
-                closureEnv.set(forObj.value.value, e)
+                closureEnv.setMutable(forObj.index.value, new Integer(i))
+                closureEnv.setMutable(forObj.value.value, e)
                 evaluate(forObj.body, closureEnv)
             })
             return forObj
@@ -509,8 +571,8 @@ function applyFor(forObj: Obj | null): Obj | null {
             const closureEnv = new Environment(forObj.env)
             const pairsArr = Object.entries(target.pairs)
             pairsArr.forEach(([key, val]) => {
-                closureEnv.set(forObj.index.value, new String(key))
-                closureEnv.set(forObj.value.value, val)
+                closureEnv.setMutable(forObj.index.value, new String(key))
+                closureEnv.setMutable(forObj.value.value, val)
                 evaluate(forObj.body, closureEnv)
             })
             return forObj
@@ -532,7 +594,7 @@ function extendedFunctionEnv(
     const closureEnv = new Environment(fn.env)
 
     fn.params.forEach((param, paramIndex) => {
-        closureEnv.set(param.value, args[paramIndex])
+        closureEnv.setMutable(param.value, args[paramIndex])
     })
 
     return closureEnv

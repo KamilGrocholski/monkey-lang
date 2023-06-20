@@ -12,6 +12,7 @@ import {
     Null,
     Hash,
     HashKey,
+    Array,
 } from '../../objects'
 import Parser from '../../parser'
 import { parseTester } from '../../parser/__tests__/infix-expression.test'
@@ -144,14 +145,41 @@ describe('eval', () => {
         })
     })
 
-    test('error handling', () => {
+    test('operator error', () => {
         const data: [string, string][] = [
             ['5 + true;', 'type mismatch: INTEGER + BOOL'],
             ['5 + true; 5;', 'type mismatch: INTEGER + BOOL'],
-            ['-true', 'unknown operator: -BOOL'],
-            ['true + false', 'unknown operator: BOOL + BOOL'],
-            ['5; true + false; 5', 'unknown operator: BOOL + BOOL'],
-            ['if (10 > 1) {true + false;}', 'unknown operator: BOOL + BOOL'],
+            [
+                '-true',
+                ErrorObj.createTypeNotSupportedError(
+                    'evalMinusPrefixOperatorExpression',
+                    OBJ_TYPE.BOOL
+                ).message,
+            ],
+            [
+                'true + false',
+                ErrorObj.createOperatorNotSupportedError(
+                    '+',
+                    OBJ_TYPE.BOOL,
+                    OBJ_TYPE.BOOL
+                ).message,
+            ],
+            [
+                '5; true + false; 5',
+                ErrorObj.createOperatorNotSupportedError(
+                    '+',
+                    OBJ_TYPE.BOOL,
+                    OBJ_TYPE.BOOL
+                ).message,
+            ],
+            [
+                'if (10 > 1) {true + false;}',
+                ErrorObj.createOperatorNotSupportedError(
+                    '+',
+                    OBJ_TYPE.BOOL,
+                    OBJ_TYPE.BOOL
+                ).message,
+            ],
             [
                 `
             if (10 > 1) {
@@ -162,9 +190,20 @@ describe('eval', () => {
                 return 1;
             }
             `,
-                'unknown operator: BOOL + BOOL',
+                ErrorObj.createOperatorNotSupportedError(
+                    '+',
+                    OBJ_TYPE.BOOL,
+                    OBJ_TYPE.BOOL
+                ).message,
             ],
-            ['"Hello" - "World"', 'unknown operator: STRING - STRING'],
+            [
+                '"Hello" - "World"',
+                ErrorObj.createOperatorNotSupportedError(
+                    '-',
+                    OBJ_TYPE.STRING,
+                    OBJ_TYPE.STRING
+                ).message,
+            ],
         ]
 
         data.forEach(([input, expected]) => {
@@ -172,14 +211,30 @@ describe('eval', () => {
         })
     })
 
-    test('let', () => {
+    test('let errors', () => {
         const data: [string, string][] = [
+            [
+                'let x = 2; let x = 3;',
+                ErrorObj.createAlreadyAssignedError('x').message,
+            ],
             [
                 'foobar',
                 ErrorObj.createIdentifierNotFoundError('foobar').message,
             ],
         ]
 
+        data.forEach(([input, expected]) => {
+            testErrorObject(input, expected)
+        })
+    })
+
+    test('const errors', () => {
+        const data: [string, string][] = [
+            [
+                'const PI = 3; PI = 0',
+                ErrorObj.createConstantReassignError('PI').message,
+            ],
+        ]
         data.forEach(([input, expected]) => {
             testErrorObject(input, expected)
         })
@@ -266,7 +321,7 @@ addTwo(2)
             [HashKey.createKey(Bool.hash(false))]: 6,
         }
 
-        pairs.forEach(([key, value], i) => {
+        pairs.forEach(([key, value]) => {
             const int = value as Integer
             expect(int).toBeInstanceOf(Integer)
             expect(int.value).toBe(expected[key])
@@ -300,6 +355,20 @@ addTwo(2)
         data.forEach(([input, expected]) => {
             const { evaluated } = evalTester(input)
             expect(evaluated?.inspect()).toBe(expected)
+        })
+    })
+
+    test('append', () => {
+        const input = 'const arr = [1,2,3]; append(arr, 4)'
+
+        const { env } = evalTester(input)
+        const arr = env.get('arr') as Array
+        expect(arr).toBeInstanceOf(Array)
+        expect(arr.elements.length).toBe(4)
+        arr.elements.forEach((el, idx) => {
+            const int = el as Integer
+            expect(int).toBeInstanceOf(Integer)
+            expect(int.value).toBe(idx + 1)
         })
     })
 })

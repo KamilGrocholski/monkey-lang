@@ -1,8 +1,10 @@
 import { Expression, Statement } from '../ast'
 import { ArrayLiteral } from '../ast/nodes/array-literal'
+import { AssignExpression } from '../ast/nodes/assign-statement'
 import { BlockStatement } from '../ast/nodes/block-statement'
 import { BooleanLiteral } from '../ast/nodes/boolean-literal'
 import { CallExpression } from '../ast/nodes/call-expression'
+import { ConstStatement } from '../ast/nodes/const-statement'
 import { ExpressionStatement } from '../ast/nodes/expression-statement'
 import { ForExpression } from '../ast/nodes/for-expression'
 import { FunctionLiteral } from '../ast/nodes/function-literal'
@@ -13,6 +15,7 @@ import { IndexExpression } from '../ast/nodes/index-expression'
 import { InfixExpression } from '../ast/nodes/infix-expression'
 import { IntegerLiteral } from '../ast/nodes/integer-literal'
 import { LetStatement } from '../ast/nodes/let-statement'
+import { NullLiteral } from '../ast/nodes/null-literal'
 import { PrefixExpression } from '../ast/nodes/prefix-expression'
 import { Program } from '../ast/nodes/program'
 import { ReturnStatement } from '../ast/nodes/return-statement'
@@ -24,6 +27,7 @@ type InfixParseFn = (exp: Expression) => Expression | null
 
 const enum Precedence {
     LOWEST = 1,
+    ASSIGN,
     EQUALS,
     LESSGREATER,
     SUM,
@@ -34,6 +38,7 @@ const enum Precedence {
 }
 
 const precedences: { [key: string]: number } = {
+    [TOKEN_KIND.Assign]: Precedence.ASSIGN,
     [TOKEN_KIND.Equal]: Precedence.EQUALS,
     [TOKEN_KIND.NotEqual]: Precedence.EQUALS,
     [TOKEN_KIND.LessThan]: Precedence.LESSGREATER,
@@ -69,6 +74,7 @@ export default class Parser {
         this.registerPrefix(TOKEN_KIND.LSquare, this.parseArrayLiteral)
         this.registerPrefix(TOKEN_KIND.LCurly, this.parseHashLiteral)
         this.registerPrefix(TOKEN_KIND.For, this.parseForExpression)
+        this.registerPrefix(TOKEN_KIND.Null, this.parseNullLiteral)
 
         this.registerInfix(TOKEN_KIND.Plus, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.Minus, this.parseInfixExpression)
@@ -79,7 +85,9 @@ export default class Parser {
         this.registerInfix(TOKEN_KIND.LessThan, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.GreaterThan, this.parseInfixExpression)
         this.registerInfix(TOKEN_KIND.LParen, this.parseCallExpression)
+        this.registerInfix(TOKEN_KIND.Dot, this.parseCallExpression)
         this.registerInfix(TOKEN_KIND.LSquare, this.parseIndexExpression)
+        this.registerInfix(TOKEN_KIND.Assign, this.parseAssignExpression)
 
         this.currentToken = this.lexer.getNextToken()
         this.peekToken = this.lexer.getNextToken()
@@ -103,6 +111,8 @@ export default class Parser {
         switch (this.currentToken.kind) {
             case TOKEN_KIND.Let:
                 return this.parseLetStatement()
+            case TOKEN_KIND.Const:
+                return this.parseConstStatement()
             case TOKEN_KIND.Return:
                 return this.parseReturnStatement()
             default:
@@ -112,6 +122,32 @@ export default class Parser {
 
     private parseLetStatement(): LetStatement | null {
         const statement = new LetStatement(this.currentToken)
+
+        if (!this.expectPeek(TOKEN_KIND.Ident)) {
+            return null
+        }
+
+        statement.name = new Identifier(
+            this.currentToken,
+            this.currentToken.literal
+        )
+
+        if (!this.expectPeek(TOKEN_KIND.Assign)) {
+            return null
+        }
+
+        this.nextToken()
+        statement.value = this.parseExpression(Precedence.LOWEST)
+
+        if (this.peekTokenIs(TOKEN_KIND.Semicolon)) {
+            this.nextToken()
+        }
+
+        return statement
+    }
+
+    private parseConstStatement(): ConstStatement | null {
+        const statement = new ConstStatement(this.currentToken)
 
         if (!this.expectPeek(TOKEN_KIND.Ident)) {
             return null
@@ -148,6 +184,31 @@ export default class Parser {
         }
 
         return statement
+    }
+
+    private parseAssignExpression(name: Expression): AssignExpression | null {
+        const currentToken = this.currentToken
+
+        if (!(name instanceof Identifier)) {
+            return null
+        }
+
+        this.nextToken
+
+        let operator: string
+        switch (this.currentToken.literal) {
+            case TOKEN_KIND.Assign:
+            default:
+                operator = TOKEN_KIND.Assign
+        }
+
+        this.nextToken() // nextToken() to skip prefix parsing
+
+        const value = this.parseExpression(Precedence.LOWEST)
+        if (!value) return null
+        const stmt = new AssignExpression(currentToken, name, operator, value)
+
+        return stmt
     }
 
     private parseIntegerLiteral(): IntegerLiteral | null {
@@ -225,6 +286,10 @@ export default class Parser {
         }
 
         return exp
+    }
+
+    private parseNullLiteral(): NullLiteral | null {
+        return new NullLiteral(this.currentToken)
     }
 
     private parseFunctionLiteral(): FunctionLiteral | null {
